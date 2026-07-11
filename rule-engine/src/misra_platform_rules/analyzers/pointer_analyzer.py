@@ -30,6 +30,14 @@ class PointerAnalyzer:
     def pointee_type(self, node: dict[str, Any]) -> str:
         return node.get("type_information", {}).get("pointee_type", "")
 
+    def is_file_pointer(self, node: dict[str, Any]) -> bool:
+        if not self.is_pointer(node):
+            return False
+        if self.pointee_type(node) == "FILE":
+            return True
+        spelling = node.get("type_information", {}).get("spelling", "")
+        return "FILE" in spelling and "*" in spelling
+
     def is_incompatible_pointer_assignment(
         self, lhs: dict[str, Any], rhs: dict[str, Any]
     ) -> bool:

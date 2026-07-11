@@ -589,3 +589,26 @@ class DataFlowEngineV2:
     ) -> bool:
         use_line = use_node.get("source_range", {}).get("line_start", 0)
         return use_line > lifetime.last_line
+
+    def modified_parameters(
+        self,
+        function_node: dict[str, Any],
+        cfg: ControlFlowGraph,
+        graph: "AstGraph",
+    ) -> list[dict[str, Any]]:
+        """Every `DeclRefExpr` that writes to a `ParmVarDecl` parameter of
+        `function_node` — MISRA Rule 17.8 territory."""
+        param_names = {
+            self._decl_ref_name(param)
+            for param in graph.children(function_node["node_id"])
+            if param.get("node_kind") == "ParmVarDecl" and self._decl_ref_name(param)
+        }
+        if not param_names:
+            return []
+
+        findings: list[dict[str, Any]] = []
+        for block in cfg.blocks.values():
+            for name, is_write, _is_read_too, ref in self._block_events(block, graph):
+                if is_write and name in param_names:
+                    findings.append(ref)
+        return findings

@@ -408,6 +408,16 @@ UNSUPPORTED_CONSTRUCTS: list[dict[str, str]] = [
         "example": "`GPIO_InitTypeDef cfg = { .Pin = GPIO_PIN_5, .Mode = GPIO_MODE_OUTPUT_PP };`",
         "impact": "Rule 9.4/9.5 need designated-initializer metadata not yet in the AST schema (tracked in coverage_matrix.py).",
     },
+    {
+        "construct": "Zephyr device-tree macro expansion (DT_*, DEVICE_DT_INST)",
+        "example": "DT_NODELABEL(uart0) in board-specific overlays",
+        "impact": "Requires compile-time macro resolution beyond current preprocessor tracker; not modeled in corpus AST.",
+    },
+    {
+        "construct": "mbedTLS platform abstraction layer (MBEDTLS_PLATFORM_*)",
+        "example": "mbedtls_platform_set_calloc_free() runtime hook registration",
+        "impact": "Function-pointer indirection through platform layer not tracked in call graph.",
+    },
 ]
 
 
@@ -612,10 +622,291 @@ def build_lwip_corpus() -> list[CorpusUnit]:
     ]
 
 
+def _zephyr_k_thread_create() -> CorpusUnit:
+    """`k_thread_create`-style thread spawn: stack pointer cast, priority
+    parameter, and a function-pointer entry point -- exercises Rule 11.x
+    function-pointer casts and Rule 8.2 prototype visibility patterns."""
+    b = Builder()
+    fn = b.node(
+        "FunctionDecl",
+        semantic_properties={"name": "k_thread_create", "storage_class": "external"},
+    )
+    body = b.node("CompoundStmt", parent=fn)
+
+    stack_decl = b.node(
+        "VarDecl", parent=body, type_information={"is_pointer": True},
+        semantic_properties={"name": "stack_ptr", "has_initializer": True},
+    )
+    cast = b.node("CStyleCastExpr", parent=stack_decl, essential_type="unsigned_char")
+    b.node("DeclRefExpr", parent=cast, semantic_properties={"name": "stack_buffer"}, essential_type="unknown")
+
+    call = b.node("CallExpr", parent=body, semantic_properties={"callee": "z_setup_new_thread"})
+    b.node("DeclRefExpr", parent=call, semantic_properties={"name": "new_thread"}, essential_type="unknown")
+    b.node("DeclRefExpr", parent=call, semantic_properties={"name": "stack_ptr"}, essential_type="unknown")
+    b.node("DeclRefExpr", parent=call, semantic_properties={"name": "stack_size"}, essential_type="unsigned_int")
+    b.node("DeclRefExpr", parent=call, semantic_properties={"name": "entry_fn"}, essential_type="unknown")
+    b.node("DeclRefExpr", parent=call, semantic_properties={"name": "priority"}, essential_type="signed_int")
+
+    ret = b.node("ReturnStmt", parent=body)
+    b.node("DeclRefExpr", parent=ret, semantic_properties={"name": "new_thread"}, essential_type="unknown")
+
+    return CorpusUnit(
+        corpus="zephyr",
+        function_name="k_thread_create",
+        description="Thread creation with stack pointer cast and function-pointer entry.",
+        known_constructs=["CStyleCastExpr stack pointer", "CallExpr with function-pointer arg"],
+        artifact=b.artifact(file_path="zephyr/kernel/thread.c"),
+    )
+
+
+def _zephyr_sys_mutex_lock() -> CorpusUnit:
+    """`k_mutex_lock`-style blocking mutex acquire with timeout parameter
+    and early-return on failure -- exercises CFG + Rule 17.7 (return value
+    used) patterns in Zephyr synchronization primitives."""
+    b = Builder()
+    fn = b.node(
+        "FunctionDecl",
+        semantic_properties={"name": "k_mutex_lock", "storage_class": "external"},
+        essential_type="signed_int",
+    )
+    body = b.node("CompoundStmt", parent=fn)
+
+    if_stmt = b.node("IfStmt", parent=body)
+    cond = b.node("BinaryOperator", parent=if_stmt, semantic_properties={"opcode": "=="})
+    b.node("DeclRefExpr", parent=cond, semantic_properties={"name": "mutex"}, essential_type="unknown")
+    b.node("IntegerLiteral", parent=cond, essential_type="signed_int", semantic_properties={"value": "0"})
+    then_branch = b.node("CompoundStmt", parent=if_stmt)
+    ret_err = b.node("ReturnStmt", parent=then_branch)
+    b.node("IntegerLiteral", parent=ret_err, essential_type="signed_int", semantic_properties={"value": "-22"})
+
+    call = b.node("CallExpr", parent=body, semantic_properties={"callee": "z_pend_curr"})
+    b.node("DeclRefExpr", parent=call, semantic_properties={"name": "mutex"}, essential_type="unknown")
+    b.node("DeclRefExpr", parent=call, semantic_properties={"name": "timeout"}, essential_type="signed_long")
+
+    ret_ok = b.node("ReturnStmt", parent=body)
+    b.node("IntegerLiteral", parent=ret_ok, essential_type="signed_int", semantic_properties={"value": "0"})
+
+    return CorpusUnit(
+        corpus="zephyr",
+        function_name="k_mutex_lock",
+        description="NULL-guarded mutex lock with timeout and status return.",
+        known_constructs=["IfStmt early-return", "CallExpr blocking primitive", "status int return"],
+        artifact=b.artifact(file_path="zephyr/kernel/mutex.c"),
+    )
+
+
+def _zephyr_net_buf_pull() -> CorpusUnit:
+    """`net_buf_pull`-style network buffer manipulation: pointer advance
+    with bounds check, cast from `struct net_buf *` payload -- mirrors
+    lwIP pbuf patterns but with Zephyr's net_buf API shape."""
+    b = Builder()
+    fn = b.node(
+        "FunctionDecl",
+        semantic_properties={"name": "net_buf_pull", "storage_class": "external"},
+        type_information={"is_pointer": True},
+    )
+    body = b.node("CompoundStmt", parent=fn)
+
+    if_stmt = b.node("IfStmt", parent=body)
+    cond = b.node("BinaryOperator", parent=if_stmt, semantic_properties={"opcode": "<"})
+    member_len = b.node("MemberExpr", parent=cond, semantic_properties={"member": "len"})
+    b.node("DeclRefExpr", parent=member_len, semantic_properties={"name": "buf"}, essential_type="unknown")
+    b.node("DeclRefExpr", parent=cond, semantic_properties={"name": "len"}, essential_type="unsigned_short")
+    then_branch = b.node("CompoundStmt", parent=if_stmt)
+    ret_null = b.node("ReturnStmt", parent=then_branch)
+    b.node("IntegerLiteral", parent=ret_null, essential_type="signed_int", semantic_properties={"value": "0"})
+
+    ptr_decl = b.node(
+        "VarDecl", parent=body, type_information={"is_pointer": True},
+        semantic_properties={"name": "data", "has_initializer": True},
+    )
+    cast = b.node("CStyleCastExpr", parent=ptr_decl, essential_type="unsigned_char")
+    member_data = b.node("MemberExpr", parent=cast, semantic_properties={"member": "data"})
+    b.node("DeclRefExpr", parent=member_data, semantic_properties={"name": "buf"}, essential_type="unknown")
+
+    advance = b.node("BinaryOperator", parent=body, semantic_properties={"opcode": "+="})
+    b.node("DeclRefExpr", parent=advance, semantic_properties={"name": "data"}, essential_type="unsigned_char")
+    b.node("DeclRefExpr", parent=advance, semantic_properties={"name": "len"}, essential_type="unsigned_short")
+
+    ret = b.node("ReturnStmt", parent=body)
+    b.node("DeclRefExpr", parent=ret, semantic_properties={"name": "data"}, essential_type="unsigned_char")
+
+    return CorpusUnit(
+        corpus="zephyr",
+        function_name="net_buf_pull",
+        description="Bounds-checked net_buf payload pointer advance with cast.",
+        known_constructs=["MemberExpr bounds check", "pointer += arithmetic", "CStyleCastExpr"],
+        artifact=b.artifact(file_path="zephyr/subsys/net/buf.c"),
+    )
+
+
+def _mbedtls_ssl_handshake() -> CorpusUnit:
+    """`mbedtls_ssl_handshake`-style state-machine loop: while-not-done
+    with switch on handshake state and multiple return paths -- exercises
+    CFG loop termination (15.4) and state-machine switch coverage."""
+    b = Builder()
+    fn = b.node(
+        "FunctionDecl",
+        semantic_properties={"name": "mbedtls_ssl_handshake", "storage_class": "external"},
+        essential_type="signed_int",
+    )
+    body = b.node("CompoundStmt", parent=fn)
+
+    while_stmt = b.node("WhileStmt", parent=body)
+    cond = b.node("BinaryOperator", parent=while_stmt, semantic_properties={"opcode": "!="})
+    member = b.node("MemberExpr", parent=cond, semantic_properties={"member": "state"})
+    b.node("DeclRefExpr", parent=member, semantic_properties={"name": "ssl"}, essential_type="unknown")
+    b.node("IntegerLiteral", parent=cond, essential_type="signed_int", semantic_properties={"value": "0"})
+
+    loop_body = b.node("CompoundStmt", parent=while_stmt)
+    switch_stmt = b.node("SwitchStmt", parent=loop_body)
+    state_member = b.node("MemberExpr", parent=switch_stmt, semantic_properties={"member": "state"})
+    b.node("DeclRefExpr", parent=state_member, semantic_properties={"name": "ssl"}, essential_type="unknown")
+    switch_body = b.node("CompoundStmt", parent=switch_stmt)
+
+    case1 = b.node("CaseStmt", parent=switch_body)
+    b.node("IntegerLiteral", parent=case1, semantic_properties={"value": "1"})
+    call1 = b.node("CallExpr", parent=switch_body, semantic_properties={"callee": "mbedtls_ssl_handshake_client_step"})
+    b.node("DeclRefExpr", parent=call1, semantic_properties={"name": "ssl"}, essential_type="unknown")
+    b.node("BreakStmt", parent=switch_body)
+
+    b.node("DefaultStmt", parent=switch_body)
+    ret_err = b.node("ReturnStmt", parent=switch_body)
+    b.node("IntegerLiteral", parent=ret_err, essential_type="signed_int", semantic_properties={"value": "-1"})
+
+    ret_ok = b.node("ReturnStmt", parent=body)
+    b.node("IntegerLiteral", parent=ret_ok, essential_type="signed_int", semantic_properties={"value": "0"})
+
+    return CorpusUnit(
+        corpus="mbedtls",
+        function_name="mbedtls_ssl_handshake",
+        description="SSL handshake state-machine while-loop with switch dispatch.",
+        known_constructs=["WhileStmt state loop", "SwitchStmt handshake states", "multiple ReturnStmt"],
+        artifact=b.artifact(file_path="mbedtls/library/ssl_tls.c"),
+    )
+
+
+def _mbedtls_aes_crypt_ecb() -> CorpusUnit:
+    """`mbedtls_aes_crypt_ecb`-style block cipher: input/output buffer
+    pointer validation, mode enum switch, and fixed 16-byte block size
+    constant -- exercises array bounds and essential-type patterns."""
+    b = Builder()
+    fn = b.node(
+        "FunctionDecl",
+        semantic_properties={"name": "mbedtls_aes_crypt_ecb", "storage_class": "external"},
+        essential_type="signed_int",
+    )
+    body = b.node("CompoundStmt", parent=fn)
+
+    if_stmt = b.node("IfStmt", parent=body)
+    cond = b.node("BinaryOperator", parent=if_stmt, semantic_properties={"opcode": "||"})
+    null_lhs = b.node("BinaryOperator", parent=cond, semantic_properties={"opcode": "=="})
+    b.node("DeclRefExpr", parent=null_lhs, semantic_properties={"name": "input"}, essential_type="unknown")
+    b.node("IntegerLiteral", parent=null_lhs, essential_type="signed_int", semantic_properties={"value": "0"})
+    null_rhs = b.node("BinaryOperator", parent=cond, semantic_properties={"opcode": "=="})
+    b.node("DeclRefExpr", parent=null_rhs, semantic_properties={"name": "output"}, essential_type="unknown")
+    b.node("IntegerLiteral", parent=null_rhs, essential_type="signed_int", semantic_properties={"value": "0"})
+    then_branch = b.node("CompoundStmt", parent=if_stmt)
+    ret_err = b.node("ReturnStmt", parent=then_branch)
+    b.node("IntegerLiteral", parent=ret_err, essential_type="signed_int", semantic_properties={"value": "-4"})
+
+    for_stmt = b.node("ForStmt", parent=body)
+    idx = b.node("VarDecl", parent=for_stmt, essential_type="unsigned_int", semantic_properties={"name": "i", "has_initializer": True})
+    b.node("IntegerLiteral", parent=idx, essential_type="unsigned_int")
+    loop_cond = b.node("BinaryOperator", parent=for_stmt, semantic_properties={"opcode": "<"})
+    b.node("DeclRefExpr", parent=loop_cond, semantic_properties={"name": "i"}, essential_type="unsigned_int")
+    b.node("IntegerLiteral", parent=loop_cond, essential_type="unsigned_int", semantic_properties={"value": "16"})
+    incr = b.node("UnaryOperator", parent=for_stmt, semantic_properties={"opcode": "++"})
+    b.node("DeclRefExpr", parent=incr, semantic_properties={"name": "i"}, essential_type="unsigned_int")
+    for_body = b.node("CompoundStmt", parent=for_stmt)
+    store = b.node("BinaryOperator", parent=for_body, semantic_properties={"opcode": "="})
+    out_sub = b.node("ArraySubscriptExpr", parent=store)
+    b.node("DeclRefExpr", parent=out_sub, semantic_properties={"name": "output"}, essential_type="unknown")
+    b.node("DeclRefExpr", parent=out_sub, semantic_properties={"name": "i"}, essential_type="unsigned_int")
+    in_sub = b.node("ArraySubscriptExpr", parent=store)
+    b.node("DeclRefExpr", parent=in_sub, semantic_properties={"name": "input"}, essential_type="unknown")
+    b.node("DeclRefExpr", parent=in_sub, semantic_properties={"name": "i"}, essential_type="unsigned_int")
+
+    ret_ok = b.node("ReturnStmt", parent=body)
+    b.node("IntegerLiteral", parent=ret_ok, essential_type="signed_int", semantic_properties={"value": "0"})
+
+    return CorpusUnit(
+        corpus="mbedtls",
+        function_name="mbedtls_aes_crypt_ecb",
+        description="AES ECB block copy loop with NULL input/output guards.",
+        known_constructs=["NULL guard IfStmt", "ForStmt 16-byte block loop", "ArraySubscriptExpr"],
+        artifact=b.artifact(file_path="mbedtls/library/aes.c"),
+    )
+
+
+def _mbedtls_mpi_mul_mpi() -> CorpusUnit:
+    """`mbedtls_mpi_mul_mpi`-style multi-precision integer multiply:
+    pointer-to-struct member access chains and conditional early-return
+    on zero operand -- exercises essential-type and pointer analysis."""
+    b = Builder()
+    fn = b.node(
+        "FunctionDecl",
+        semantic_properties={"name": "mbedtls_mpi_mul_mpi", "storage_class": "external"},
+        essential_type="signed_int",
+    )
+    body = b.node("CompoundStmt", parent=fn)
+
+    if_stmt = b.node("IfStmt", parent=body)
+    cond = b.node("BinaryOperator", parent=if_stmt, semantic_properties={"opcode": "||"})
+    zero_lhs = b.node("BinaryOperator", parent=cond, semantic_properties={"opcode": "=="})
+    lhs_member = b.node("MemberExpr", parent=zero_lhs, semantic_properties={"member": "n"})
+    b.node("DeclRefExpr", parent=lhs_member, semantic_properties={"name": "X"}, essential_type="unknown")
+    b.node("IntegerLiteral", parent=zero_lhs, essential_type="signed_int", semantic_properties={"value": "0"})
+    zero_rhs = b.node("BinaryOperator", parent=cond, semantic_properties={"opcode": "=="})
+    rhs_member = b.node("MemberExpr", parent=zero_rhs, semantic_properties={"member": "n"})
+    b.node("DeclRefExpr", parent=rhs_member, semantic_properties={"name": "Y"}, essential_type="unknown")
+    b.node("IntegerLiteral", parent=zero_rhs, essential_type="signed_int", semantic_properties={"value": "0"})
+    then_branch = b.node("CompoundStmt", parent=if_stmt)
+    call = b.node("CallExpr", parent=then_branch, semantic_properties={"callee": "mbedtls_mpi_lset"})
+    b.node("DeclRefExpr", parent=call, semantic_properties={"name": "N"}, essential_type="unknown")
+    b.node("IntegerLiteral", parent=call, essential_type="signed_int", semantic_properties={"value": "0"})
+    ret_early = b.node("ReturnStmt", parent=then_branch)
+    b.node("IntegerLiteral", parent=ret_early, essential_type="signed_int", semantic_properties={"value": "0"})
+
+    mul_call = b.node("CallExpr", parent=body, semantic_properties={"callee": "mpi_mul_hlp"})
+    b.node("DeclRefExpr", parent=mul_call, semantic_properties={"name": "N"}, essential_type="unknown")
+    b.node("DeclRefExpr", parent=mul_call, semantic_properties={"name": "X"}, essential_type="unknown")
+    b.node("DeclRefExpr", parent=mul_call, semantic_properties={"name": "Y"}, essential_type="unknown")
+
+    ret_ok = b.node("ReturnStmt", parent=body)
+    b.node("IntegerLiteral", parent=ret_ok, essential_type="signed_int", semantic_properties={"value": "0"})
+
+    return CorpusUnit(
+        corpus="mbedtls",
+        function_name="mbedtls_mpi_mul_mpi",
+        description="MPI multiply with zero-operand short-circuit and helper call.",
+        known_constructs=["MemberExpr .n access", "zero-operand IfStmt", "CallExpr mpi helper"],
+        artifact=b.artifact(file_path="mbedtls/library/bignum.c"),
+    )
+
+
+def build_zephyr_corpus() -> list[CorpusUnit]:
+    return [
+        _zephyr_k_thread_create(),
+        _zephyr_sys_mutex_lock(),
+        _zephyr_net_buf_pull(),
+    ]
+
+
+def build_mbedtls_corpus() -> list[CorpusUnit]:
+    return [
+        _mbedtls_ssl_handshake(),
+        _mbedtls_aes_crypt_ecb(),
+        _mbedtls_mpi_mul_mpi(),
+    ]
+
+
 def build_all_corpora() -> list[CorpusUnit]:
     return [
         *build_stm32_hal_corpus(),
         *build_cmsis_corpus(),
         *build_freertos_corpus(),
         *build_lwip_corpus(),
+        *build_zephyr_corpus(),
+        *build_mbedtls_corpus(),
     ]

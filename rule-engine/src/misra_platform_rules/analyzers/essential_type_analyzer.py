@@ -87,6 +87,12 @@ class EssentialTypeAnalyzer:
     def is_boolean(self, essential_type: str) -> bool:
         return essential_type == "boolean"
 
+    def is_wider(self, from_type: str, to_type: str) -> bool:
+        """True if `to_type` has a strictly greater essential-type rank than `from_type`."""
+        if from_type in ("unknown", "complex") or to_type in ("unknown", "complex"):
+            return False
+        return self.rank(to_type) > self.rank(from_type)
+
     def is_narrowing(self, from_type: str, to_type: str) -> bool:
         """True if assigning/converting from_type -> to_type may lose information."""
         if from_type in ("unknown", "complex") or to_type in ("unknown", "complex"):

@@ -467,3 +467,161 @@ class Rule11_6(BaseRulePlugin):
             compliant=["uint8_t *p = create_buffer(); /* stays a pointer */"],
             non_compliant=["void *raw = create_buffer();\nuint32_t address = (uint32_t)raw; /* void* to arithmetic */"],
         )
+
+
+class Rule10_6(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-10-6",
+            rule_number="10.6",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="A composite expression shall not be assigned to a wider essential type",
+            description=(
+                "The value of a composite expression shall not be assigned to an object "
+                "with a wider essential type."
+            ),
+            rationale="Widening a composite expression's result can hide intermediate truncation.",
+            tags=["essential-types", "conversions", "composite-expressions"],
+            references=["MISRA C:2012 Rule 10.6"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_conversions",
+            requires_ast_nodes=["BinaryOperator"],
+            implementation_category=RuleImplementationCategory.B_TYPE_SYSTEM,
+            rule_pack=RulePack.CONVERSIONS,
+            requires_type_info=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        essential_types = self.essential_types()
+        casts = self.casts()
+        results: list[RuleResult] = []
+
+        for node in graph.nodes_by_kind("BinaryOperator"):
+            if node.get("semantic_properties", {}).get("opcode") != "=":
+                continue
+            children = graph.children(node["node_id"])
+            if len(children) < 2:
+                continue
+            lhs, rhs = children[0], children[1]
+            if not casts.is_composite_expression(rhs):
+                continue
+            lhs_type = essential_types.essential_type_of(lhs)
+            rhs_type = essential_types.essential_type_of(rhs)
+            if lhs_type == "unknown" or rhs_type == "unknown":
+                continue
+            if not essential_types.is_wider(lhs_type, rhs_type):
+                continue
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation=(
+                        f"Composite expression of essential type '{rhs_type}' assigned to "
+                        f"wider essential type '{lhs_type}'."
+                    ),
+                    risk_description="Widening a composite expression can hide intermediate truncation.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.88,
+                        "type_information_complete": 0.85,
+                        "macro_clarity": 0.9,
+                        "historical_false_positive_rate": 0.12,
+                        "fix_generator_certainty": 0.5,
+                    },
+                    confidence_score=0.85,
+                    suggested_fix=SuggestedFix(
+                        original_code=AstGraph.offending_text(node),
+                        suggested_code="assign to a temporary of the composite expression's essential type first",
+                        rationale="Avoid widening the result of a composite expression directly.",
+                        confidence_score=0.5,
+                    ),
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["uint16_t narrow = (uint16_t)(a + b);"],
+            non_compliant=["uint32_t wide = (uint16_t)a + (uint16_t)b; /* composite to wider */"],
+        )
+
+
+class Rule10_8(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-10-8",
+            rule_number="10.8",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="A composite expression cast to a wider category shall not be used as an operand",
+            description=(
+                "A composite expression shall not be cast to a different, wider essential "
+                "type category before being used as an operand."
+            ),
+            rationale="Category-widening casts on composite expressions compound conversion ambiguity.",
+            tags=["essential-types", "conversions", "composite-expressions", "casts"],
+            references=["MISRA C:2012 Rule 10.8"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_conversions",
+            requires_ast_nodes=["CStyleCastExpr"],
+            implementation_category=RuleImplementationCategory.B_TYPE_SYSTEM,
+            rule_pack=RulePack.CONVERSIONS,
+            requires_type_info=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        casts = self.casts()
+        results: list[RuleResult] = []
+
+        for node in graph.nodes_by_kind("CStyleCastExpr"):
+            children = graph.children(node["node_id"])
+            if not children:
+                continue
+            operand = children[0]
+            if not casts.is_composite_expression(operand):
+                continue
+            if not casts.changes_to_wider_category(node, operand):
+                continue
+            parent = graph.get(node.get("parent_id", ""))
+            if not parent or parent.get("node_kind") not in (
+                "BinaryOperator",
+                "UnaryOperator",
+                "CallExpr",
+                "ArraySubscriptExpr",
+            ):
+                continue
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation="A composite expression is cast to a wider essential type category before use.",
+                    risk_description="Category-widening casts on composite expressions are error-prone.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.85,
+                        "type_information_complete": 0.82,
+                        "macro_clarity": 0.88,
+                        "historical_false_positive_rate": 0.15,
+                        "fix_generator_certainty": 0.4,
+                    },
+                    confidence_score=0.82,
+                    suggested_fix=SuggestedFix(
+                        original_code=AstGraph.offending_text(node),
+                        suggested_code="evaluate the composite expression without widening its category",
+                        rationale="Keep composite-expression essential types consistent with operands.",
+                        confidence_score=0.4,
+                    ),
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["int32_t total = (int32_t)(a + b);"],
+            non_compliant=["float32_t total = (float32_t)(a + b) + c; /* composite cast to wider category */"],
+        )

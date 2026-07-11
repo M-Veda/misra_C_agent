@@ -529,3 +529,68 @@ class Rule8_8(BaseRulePlugin):
             compliant=["static void helper(void);\nstatic void helper(void) { /* ... */ }"],
             non_compliant=["static void helper(void);\nvoid helper(void) { /* missing 'static' here */ }"],
         )
+
+
+class Rule17_2(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-17-2",
+            rule_number="17.2",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="Functions shall not call themselves, directly or indirectly",
+            description="Recursion (direct or indirect) shall not be used.",
+            rationale="Recursion makes stack-depth analysis and worst-case timing unpredictable.",
+            tags=["linkage", "functions", "recursion", "cross-tu"],
+            references=["MISRA C:2012 Rule 17.2"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_linkage",
+            requires_ast_nodes=["FunctionDecl"],
+            implementation_category=RuleImplementationCategory.E_CROSS_TRANSLATION_UNIT,
+            rule_pack=RulePack.LINKAGE,
+            requires_linkage=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        linkage = self.linkage(context)
+        in_cycles = set(linkage.functions_in_recursion_cycles())
+        if not in_cycles:
+            return []
+
+        graph = self.graph(context)
+        results: list[RuleResult] = []
+        for node in graph.nodes_by_kind("FunctionDecl"):
+            name = node.get("semantic_properties", {}).get("name", "")
+            if not name or name not in in_cycles:
+                continue
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation=f"Function '{name}' participates in a recursion cycle.",
+                    risk_description="Recursion makes stack-depth and timing analysis unpredictable.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.85,
+                        "type_information_complete": 0.75,
+                        "macro_clarity": 0.85,
+                        "historical_false_positive_rate": 0.1,
+                        "fix_generator_certainty": 0.25,
+                    },
+                    confidence_score=0.8,
+                    suggested_fix=SuggestedFix(
+                        original_code=f"{name}",
+                        suggested_code=f"replace recursive '{name}' with an iterative implementation",
+                        rationale="Eliminate direct and indirect recursion.",
+                        confidence_score=0.25,
+                    ),
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["uint16_t factorial_iter(uint16_t n) {\n    uint16_t result = 1U;\n    while (n > 1U) {\n        result *= n--;\n    }\n    return result;\n}"],
+            non_compliant=["uint16_t factorial(uint16_t n) {\n    if (n <= 1U) {\n        return 1U;\n    }\n    return n * factorial(n - 1U); /* recursion */\n}"],
+        )

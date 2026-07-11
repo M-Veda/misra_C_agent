@@ -499,3 +499,562 @@ class Rule21_2(BaseRulePlugin):
             compliant=["int32_t retry_count;"],
             non_compliant=["int32_t _RetryCount; /* reserved: leading underscore + uppercase */"],
         )
+
+
+def _preprocessor_result(
+    plugin: BaseRulePlugin,
+    context: RuleContext,
+    *,
+    source_range: dict,
+    offending_expression: str,
+    explanation: str,
+    risk_description: str,
+    confidence_score: float = 0.85,
+) -> RuleResult:
+    return RuleResult(
+        rule_id=plugin.metadata.rule_id,
+        file_path=source_range.get("file_path", context.file_path),
+        line_start=source_range.get("line_start", 0),
+        line_end=source_range.get("line_end", 0),
+        column_start=source_range.get("column_start", 0),
+        column_end=source_range.get("column_end", 0),
+        offending_expression=offending_expression,
+        explanation=explanation,
+        risk_description=risk_description,
+        source_snippet=f"{context.file_path}:{source_range.get('line_start', 0)}",
+        ast_node_id="",
+        ast_node_path=[],
+        confidence_score=confidence_score,
+        confidence_factors={
+            "ast_match_specificity": 0.85,
+            "type_information_complete": 0.6,
+            "macro_clarity": 0.9,
+            "historical_false_positive_rate": 0.1,
+            "fix_generator_certainty": 0.4,
+        },
+        suggested_fix=None,
+    )
+
+
+class Rule20_1(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-20-1",
+            rule_number="20.1",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.ADVISORY,
+            severity=RuleSeverity.MINOR,
+            title="#include directives should only be preceded by preprocessor directives or comments",
+            description="#include shall not follow non-preprocessor source lines.",
+            rationale="Code before an #include can be silently excluded when the header is reincluded.",
+            tags=["preprocessor", "includes"],
+            references=["MISRA C:2012 Rule 20.1"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor",
+            requires_ast_nodes=[],
+            implementation_category=RuleImplementationCategory.F_PREPROCESSOR,
+            rule_pack=RulePack.PREPROCESSOR,
+            requires_macro_expansion=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        macros = self.macros()
+        results: list[RuleResult] = []
+        for directive in macros.include_directives(context.macro_table):
+            if not macros.include_preceded_by_non_preprocessor(directive):
+                continue
+            header = directive.get("header") or directive.get("included_file", "")
+            results.append(
+                _preprocessor_result(
+                    self,
+                    context,
+                    source_range=directive.get("range", {}),
+                    offending_expression=f"#include {header}",
+                    explanation="#include is preceded by non-preprocessor source.",
+                    risk_description="Leading code can be excluded when the header is reincluded.",
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["#define APP 1\n#include \"app.h\""],
+            non_compliant=["int32_t counter;\n#include \"app.h\""],
+        )
+
+
+class Rule20_2(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-20-2",
+            rule_number="20.2",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="Header names shall not contain ', \\, or comment sequences",
+            description="A header name in #include shall not contain forbidden characters or comment starters.",
+            rationale="Malformed header names produce implementation-defined behaviour.",
+            tags=["preprocessor", "includes"],
+            references=["MISRA C:2012 Rule 20.2"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor",
+            requires_ast_nodes=[],
+            implementation_category=RuleImplementationCategory.F_PREPROCESSOR,
+            rule_pack=RulePack.PREPROCESSOR,
+            requires_macro_expansion=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        macros = self.macros()
+        results: list[RuleResult] = []
+        for directive in macros.include_directives(context.macro_table):
+            if not macros.include_has_invalid_header_chars(directive):
+                continue
+            header = directive.get("header") or directive.get("included_file", "")
+            results.append(
+                _preprocessor_result(
+                    self,
+                    context,
+                    source_range=directive.get("range", {}),
+                    offending_expression=f"#include {header}",
+                    explanation=f"Header name '{header}' contains forbidden characters.",
+                    risk_description="Malformed header names are undefined behaviour.",
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["#include <stdint.h>"],
+            non_compliant=["#include \"bad//name.h\""],
+        )
+
+
+class Rule20_3(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-20-3",
+            rule_number="20.3",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="#include directives shall use the correct syntax",
+            description="#include shall use the <h> or \"h\" form only.",
+            rationale="Malformed #include syntax is a hard preprocessing error.",
+            tags=["preprocessor", "includes"],
+            references=["MISRA C:2012 Rule 20.3"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor",
+            requires_ast_nodes=[],
+            implementation_category=RuleImplementationCategory.F_PREPROCESSOR,
+            rule_pack=RulePack.PREPROCESSOR,
+            requires_macro_expansion=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        macros = self.macros()
+        results: list[RuleResult] = []
+        for directive in macros.include_directives(context.macro_table):
+            if not macros.include_has_invalid_syntax(directive):
+                continue
+            header = directive.get("header") or directive.get("included_file", "")
+            results.append(
+                _preprocessor_result(
+                    self,
+                    context,
+                    source_range=directive.get("range", {}),
+                    offending_expression=f"#include {header}",
+                    explanation="#include uses invalid syntax.",
+                    risk_description="Malformed #include directives fail preprocessing.",
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["#include \"app.h\""],
+            non_compliant=["#include app.h /* missing quotes */"],
+        )
+
+
+class Rule20_6(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-20-6",
+            rule_number="20.6",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="Tokens introduced by # or ## shall be valid preprocessing tokens",
+            description="Macro stringification/pasting shall produce valid preprocessing tokens.",
+            rationale="Invalid pasted tokens break preprocessing in toolchain-specific ways.",
+            tags=["preprocessor", "macros"],
+            references=["MISRA C:2012 Rule 20.6"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor",
+            requires_ast_nodes=[],
+            implementation_category=RuleImplementationCategory.F_PREPROCESSOR,
+            rule_pack=RulePack.PREPROCESSOR,
+            requires_macro_expansion=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        macros = self.macros()
+        results: list[RuleResult] = []
+        for macro_def in macros.macro_definitions(context.macro_table):
+            if not macros.macro_has_invalid_preprocessor_tokens(macro_def):
+                continue
+            name = macro_def.get("name", "")
+            source_range = macro_def.get("range", {})
+            results.append(
+                _preprocessor_result(
+                    self,
+                    context,
+                    source_range=source_range,
+                    offending_expression=f"#define {name}",
+                    explanation=f"Macro '{name}' pastes/stringifies invalid preprocessing tokens.",
+                    risk_description="Invalid pasted tokens are undefined behaviour.",
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["#define JOIN(a, b) a##b"],
+            non_compliant=["#define BAD(x) x## /* invalid paste */"],
+        )
+
+
+class Rule20_8(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-20-8",
+            rule_number="20.8",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="The controlling expression of #if/#elif shall evaluate to 0 or 1",
+            description="A #if/#elif controlling expression shall be essentially Boolean.",
+            rationale="Non-Boolean controlling expressions rely on implementation-defined truth rules.",
+            tags=["preprocessor", "conditional-compilation"],
+            references=["MISRA C:2012 Rule 20.8"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor",
+            requires_ast_nodes=[],
+            implementation_category=RuleImplementationCategory.F_PREPROCESSOR,
+            rule_pack=RulePack.PREPROCESSOR,
+            requires_macro_expansion=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        macros = self.macros()
+        results: list[RuleResult] = []
+        for branch in macros.conditional_branches(context.macro_table):
+            if not macros.conditional_non_boolean_controlling_expression(branch):
+                continue
+            source_range = branch.get("range", {})
+            results.append(
+                _preprocessor_result(
+                    self,
+                    context,
+                    source_range=source_range,
+                    offending_expression=f"#{branch.get('directive', 'if')} {branch.get('condition', '')}",
+                    explanation="The controlling expression is not restricted to 0 or 1.",
+                    risk_description="Non-Boolean #if expressions are implementation-defined.",
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["#if (FEATURE == 1)"],
+            non_compliant=["#if FEATURE /* not explicitly 0/1 */"],
+        )
+
+
+class Rule20_9(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-20-9",
+            rule_number="20.9",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="All identifiers in a #if/#elif expression shall be #defined",
+            description="Every identifier in a #if/#elif expression shall be defined before evaluation.",
+            rationale="Undefined identifiers in #if expressions evaluate to 0, hiding configuration mistakes.",
+            tags=["preprocessor", "conditional-compilation"],
+            references=["MISRA C:2012 Rule 20.9"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor",
+            requires_ast_nodes=[],
+            implementation_category=RuleImplementationCategory.F_PREPROCESSOR,
+            rule_pack=RulePack.PREPROCESSOR,
+            requires_macro_expansion=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        macros = self.macros()
+        results: list[RuleResult] = []
+        for branch in macros.conditional_branches(context.macro_table):
+            undefined = macros.conditional_undefined_identifiers(branch)
+            if not undefined:
+                continue
+            source_range = branch.get("range", {})
+            names = ", ".join(undefined)
+            results.append(
+                _preprocessor_result(
+                    self,
+                    context,
+                    source_range=source_range,
+                    offending_expression=f"#{branch.get('directive', 'if')} {branch.get('condition', '')}",
+                    explanation=f"#if/#elif expression uses undefined identifier(s): {names}.",
+                    risk_description="Undefined identifiers silently evaluate to 0 in #if expressions.",
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["#if defined(FEATURE_A)"],
+            non_compliant=["#if (UNDEFINED_FLAG == 1)"],
+        )
+
+
+class Rule20_11(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-20-11",
+            rule_number="20.11",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="A macro parameter used with # shall not be followed by ##",
+            description="A stringified macro parameter shall not be followed by an unparenthesized operator.",
+            rationale="Stringification adjacent to operators produces fragile expansions.",
+            tags=["preprocessor", "macros"],
+            references=["MISRA C:2012 Rule 20.11"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor",
+            requires_ast_nodes=[],
+            implementation_category=RuleImplementationCategory.F_PREPROCESSOR,
+            rule_pack=RulePack.PREPROCESSOR,
+            requires_macro_expansion=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        macros = self.macros()
+        results: list[RuleResult] = []
+        for macro_def in macros.macro_definitions(context.macro_table):
+            if not macros.macro_stringify_param_unparenthesized_operator(macro_def):
+                continue
+            name = macro_def.get("name", "")
+            results.append(
+                _preprocessor_result(
+                    self,
+                    context,
+                    source_range=macro_def.get("range", {}),
+                    offending_expression=f"#define {name}",
+                    explanation=f"Macro '{name}' stringifies a parameter next to an unparenthesized operator.",
+                    risk_description="Stringification next to operators is fragile and hard to review.",
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["#define STR(x) #x"],
+            non_compliant=["#define BAD(x) #x + 1"],
+        )
+
+
+class Rule20_12(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-20-12",
+            rule_number="20.12",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="A macro parameter used with # shall not also be used with ##",
+            description="A macro parameter shall not be both stringified and token-pasted.",
+            rationale="Mixing # and ## on the same parameter is undefined behaviour.",
+            tags=["preprocessor", "macros"],
+            references=["MISRA C:2012 Rule 20.12"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor",
+            requires_ast_nodes=[],
+            implementation_category=RuleImplementationCategory.F_PREPROCESSOR,
+            rule_pack=RulePack.PREPROCESSOR,
+            requires_macro_expansion=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        macros = self.macros()
+        results: list[RuleResult] = []
+        for macro_def in macros.macro_definitions(context.macro_table):
+            if not macros.macro_param_mixed_stringify_and_paste(macro_def):
+                continue
+            name = macro_def.get("name", "")
+            results.append(
+                _preprocessor_result(
+                    self,
+                    context,
+                    source_range=macro_def.get("range", {}),
+                    offending_expression=f"#define {name}",
+                    explanation=f"Macro '{name}' uses # and ## on the same parameter.",
+                    risk_description="Mixing stringification and token pasting is undefined behaviour.",
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["#define TOK(x) x"],
+            non_compliant=["#define MIX(x) #x ## suffix"],
+        )
+
+
+class Rule20_13(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-20-13",
+            rule_number="20.13",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="A line with a # directive shall have one of the permitted forms",
+            description="Preprocessor directives shall match one of the permitted #directive forms.",
+            rationale="Malformed # lines are preprocessing errors or silently ignored.",
+            tags=["preprocessor", "directives"],
+            references=["MISRA C:2012 Rule 20.13"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor",
+            requires_ast_nodes=[],
+            implementation_category=RuleImplementationCategory.F_PREPROCESSOR,
+            rule_pack=RulePack.PREPROCESSOR,
+            requires_macro_expansion=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        macros = self.macros()
+        results: list[RuleResult] = []
+        for directive in macros.preprocessor_directives(context.macro_table):
+            if not macros.directive_has_invalid_form(directive):
+                continue
+            text = directive.get("text", directive.get("directive", "#"))
+            results.append(
+                _preprocessor_result(
+                    self,
+                    context,
+                    source_range=directive.get("range", {}),
+                    offending_expression=text,
+                    explanation="Preprocessor directive does not match a permitted form.",
+                    risk_description="Malformed # directives break preprocessing.",
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["#define MAX 10"],
+            non_compliant=["# unknown-directive"],
+        )
+
+
+class Rule20_5(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-20-5",
+            rule_number="20.5",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.ADVISORY,
+            severity=RuleSeverity.MINOR,
+            title="#undef should not be used",
+            description="The #undef directive should not be used.",
+            rationale="#undef makes macro visibility order-dependent and hard to audit.",
+            tags=["preprocessor", "macros"],
+            references=["MISRA C:2012 Rule 20.5"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor",
+            requires_ast_nodes=[],
+            implementation_category=RuleImplementationCategory.F_PREPROCESSOR,
+            rule_pack=RulePack.PREPROCESSOR,
+            requires_macro_expansion=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        macros = self.macros()
+        results: list[RuleResult] = []
+        for directive in macros.undef_directives(context.macro_table):
+            name = directive.get("name", "<macro>")
+            source_range = directive.get("range", {})
+            results.append(
+                _preprocessor_result(
+                    self,
+                    context,
+                    source_range=source_range,
+                    offending_expression=f"#undef {name}",
+                    explanation=f"#undef is used on macro '{name}'.",
+                    risk_description="#undef makes macro visibility fragile and order-dependent.",
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["#define MAX_RETRIES 3"],
+            non_compliant=["#define MAX_RETRIES 3\n#undef MAX_RETRIES"],
+        )
+
+
+class Rule20_10(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-20-10",
+            rule_number="20.10",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.ADVISORY,
+            severity=RuleSeverity.MINOR,
+            title="The # and ## preprocessor operators should not be used",
+            description="The stringification (#) and token-pasting (##) operators should not be used.",
+            rationale="# and ## produce fragile expansions that are difficult to review.",
+            tags=["preprocessor", "macros"],
+            references=["MISRA C:2012 Rule 20.10"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor",
+            requires_ast_nodes=[],
+            implementation_category=RuleImplementationCategory.F_PREPROCESSOR,
+            rule_pack=RulePack.PREPROCESSOR,
+            requires_macro_expansion=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        macros = self.macros()
+        results: list[RuleResult] = []
+        for macro_def in macros.macros_using_token_operators(context.macro_table):
+            name = macro_def.get("name", "<macro>")
+            operators = []
+            if macro_def.get("uses_stringify"):
+                operators.append("#")
+            if macro_def.get("uses_token_paste"):
+                operators.append("##")
+            op_text = " and ".join(operators)
+            source_range = macro_def.get("range", {})
+            results.append(
+                _preprocessor_result(
+                    self,
+                    context,
+                    source_range=source_range,
+                    offending_expression=f"#define {name} ... {op_text} ...",
+                    explanation=f"Macro '{name}' uses the {op_text} preprocessor operator(s).",
+                    risk_description="Stringification and token pasting are fragile and hard to review.",
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["#define LOG(msg) record(msg)"],
+            non_compliant=["#define STR(x) #x\n#define JOIN(a,b) a##b"],
+        )

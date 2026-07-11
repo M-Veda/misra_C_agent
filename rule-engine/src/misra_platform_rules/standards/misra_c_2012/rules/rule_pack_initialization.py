@@ -296,3 +296,120 @@ class Rule9_5(BaseRulePlugin):
             compliant=["int32_t values[3] = { 1, 2, 3 };"],
             non_compliant=["int32_t values[3] = { [0] = 1, 2, 3 }; /* mixes designated and positional */"],
         )
+
+
+class Rule9_2(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-9-2",
+            rule_number="9.2",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="Initializers for aggregates/unions shall be fully bracketed",
+            description="Aggregate and union initializers shall use explicit braces for every nesting level.",
+            rationale="Partially bracketed initializers are easy to misread and can initialize the wrong members.",
+            tags=["initialization", "aggregates"],
+            references=["MISRA C:2012 Rule 9.2"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_initialization",
+            requires_ast_nodes=["InitListExpr"],
+            implementation_category=RuleImplementationCategory.A_AST_ONLY,
+            rule_pack=RulePack.INITIALIZATION,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        results: list[RuleResult] = []
+        for node in graph.nodes_by_kind("InitListExpr"):
+            terminated = node.get("semantic_properties", {}).get("is_fully_bracketed")
+            if terminated is None or terminated is True or terminated == "true":
+                continue
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation="An aggregate or union initializer is not fully bracketed.",
+                    risk_description="Missing braces can initialize unintended sub-objects.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.88,
+                        "type_information_complete": 0.8,
+                        "macro_clarity": 0.9,
+                        "historical_false_positive_rate": 0.12,
+                        "fix_generator_certainty": 0.45,
+                    },
+                    confidence_score=0.82,
+                    suggested_fix=SuggestedFix(
+                        original_code=AstGraph.offending_text(node),
+                        suggested_code="add explicit braces at every aggregate nesting level",
+                        rationale="Use fully bracketed initializer lists.",
+                        confidence_score=0.45,
+                    ),
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["struct point_tag p = { { 1 }, { 2 } };"],
+            non_compliant=["struct point_tag p = { 1, 2 }; /* missing inner braces */"],
+        )
+
+
+class Rule9_4(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-9-4",
+            rule_number="9.4",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="An element of an object shall not be initialized more than once",
+            description="No sub-object shall be targeted by more than one designator in an initializer list.",
+            rationale="Duplicate designators silently discard earlier initializers.",
+            tags=["initialization", "designators"],
+            references=["MISRA C:2012 Rule 9.4"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_initialization",
+            requires_ast_nodes=["InitListExpr"],
+            implementation_category=RuleImplementationCategory.A_AST_ONLY,
+            rule_pack=RulePack.INITIALIZATION,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        results: list[RuleResult] = []
+        for node in graph.nodes_by_kind("InitListExpr"):
+            if not node.get("semantic_properties", {}).get("duplicate_designator"):
+                continue
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation="An initializer list repeats the same designator.",
+                    risk_description="The earlier initializer for that sub-object is silently discarded.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.92,
+                        "type_information_complete": 0.85,
+                        "macro_clarity": 0.9,
+                        "historical_false_positive_rate": 0.08,
+                        "fix_generator_certainty": 0.45,
+                    },
+                    confidence_score=0.88,
+                    suggested_fix=SuggestedFix(
+                        original_code=AstGraph.offending_text(node),
+                        suggested_code="remove the duplicate designator",
+                        rationale="Each sub-object should be initialized at most once.",
+                        confidence_score=0.45,
+                    ),
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["struct cfg_tag c = { .mode = 1, .limit = 10 };"],
+            non_compliant=["struct cfg_tag c = { .mode = 1, .mode = 2 };"],
+        )

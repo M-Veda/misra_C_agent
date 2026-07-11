@@ -41,16 +41,20 @@ def test_process_only_directives_are_blocked_on_process():
 def test_raw_ast_metadata_gaps_are_tiered_correctly():
     roadmap = build_roadmap(_registered_ids())
     by_id = {entry.identifier: entry for entry in roadmap}
-    assert by_id["7.1"].tier == "blocked_on_ast_metadata"  # needs raw literal spelling
-    assert by_id["6.1"].tier == "blocked_on_ast_metadata"  # needs bit-field metadata
+    assert by_id["4.2"].tier == "blocked_on_ast_metadata"  # trigraphs need raw source scan
+    assert by_id["7.1"].tier == "implemented"
+    assert by_id["6.1"].tier == "implemented"
 
 
 def test_reuse_existing_analyzer_rules_are_ready_now():
     roadmap = build_roadmap(_registered_ids())
     by_id = {entry.identifier: entry for entry in roadmap}
-    # 2.6 says "Planned: reuse CFGBuilder..." -- infra already exists,
-    # rule just hasn't been written yet (unlike 5.6, which Phase 6 shipped).
-    assert by_id["2.6"].tier == "ready_now"
+    # Phase 6.5 shipped the alias_analysis ready_now batch.
+    assert by_id["2.6"].tier == "implemented"
+    assert by_id["16.1"].tier == "implemented"
+    assert by_id["18.1"].tier == "implemented"
+    assert by_id["22.6"].tier == "implemented"
+    assert by_id["20.5"].tier == "implemented"
 
 
 def test_alias_analysis_rules_flagged_correctly():

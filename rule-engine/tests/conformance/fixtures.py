@@ -6,6 +6,11 @@ as the input to the precision/recall/false-positive-rate report."""
 
 from conformance.ast_builders import Builder
 from conformance.fixtures_phase6 import PHASE6_SUITE_BUILDERS
+from conformance.fixtures_phase62 import PHASE62_SUITE_BUILDERS
+from conformance.fixtures_phase63 import PHASE63_SUITE_BUILDERS
+from conformance.fixtures_phase64 import PHASE64_SUITE_BUILDERS
+from conformance.fixtures_phase65 import PHASE65_SUITE_BUILDERS
+from conformance.fixtures_phase71 import PHASE71_SUITE_BUILDERS
 from misra_platform_rules.conformance import ConformanceCase, RuleConformanceSuite
 
 
@@ -1857,5 +1862,15 @@ def build_all_suites() -> list[RuleConformanceSuite]:
         rule_2_1,
         # --- Phase 6 ---------------------------------------------------
         *PHASE6_SUITE_BUILDERS,
+        # --- Phase 6.2 ---------------------------------------------------
+        *PHASE62_SUITE_BUILDERS,
+        # --- Phase 6.3 ---------------------------------------------------
+        *PHASE63_SUITE_BUILDERS,
+        # --- Phase 6.4 ---------------------------------------------------
+        *PHASE64_SUITE_BUILDERS,
+        # --- Phase 6.5 ---------------------------------------------------
+        *PHASE65_SUITE_BUILDERS,
+        # --- Phase 7.1 ---------------------------------------------------
+        *PHASE71_SUITE_BUILDERS,
     ]
     return [builder() for builder in builders]

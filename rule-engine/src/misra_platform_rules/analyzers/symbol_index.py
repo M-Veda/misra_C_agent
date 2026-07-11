@@ -129,6 +129,26 @@ class SymbolIndex:
                 return True
         return False
 
+    def incompatible_declaration_groups(
+        self,
+    ) -> list[tuple[str, list[dict[str, Any]]]]:
+        """Declarations sharing a name where at least one is marked incompatible.
+
+        Used by MISRA Rule 8.3. Relies on clang-worker populating
+        ``semantic_properties.declaration_incompatible`` when a declaration
+        does not match a prior declaration of the same identifier.
+        """
+        groups: list[tuple[str, list[dict[str, Any]]]] = []
+        for name, decls in self._by_name.items():
+            if len(decls) < 2:
+                continue
+            if any(
+                decl.get("semantic_properties", {}).get("declaration_incompatible", False)
+                for decl in decls
+            ):
+                groups.append((name, decls))
+        return groups
+
     def shadowing_pairs(self) -> list[tuple[dict[str, Any], dict[str, Any]]]:
         """(outer, inner) declaration pairs that share a name across nested
         scopes. A declaration's *scope* is its `parent_id` (the statement/

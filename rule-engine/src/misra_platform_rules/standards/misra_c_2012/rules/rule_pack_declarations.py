@@ -1061,3 +1061,487 @@ class Rule19_2(BaseRulePlugin):
             compliant=["struct variant_tag {\n    uint8_t tag;\n    int32_t value;\n};"],
             non_compliant=["union variant_tag {\n    int32_t as_int;\n    float as_float;\n};"],
         )
+
+
+class Rule8_3(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-8-3",
+            rule_number="8.3",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="All declarations of an object or function shall use the same names and type qualifiers",
+            description=(
+                "All declarations of an object or function shall use the same names and type qualifiers."
+            ),
+            rationale="Incompatible declarations of the same identifier cause undefined linker behaviour.",
+            tags=["declarations", "linkage", "qualifiers"],
+            references=["MISRA C:2012 Rule 8.3"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations",
+            requires_ast_nodes=["VarDecl", "FunctionDecl", "ParmVarDecl"],
+            implementation_category=RuleImplementationCategory.B_TYPE_SYSTEM,
+            rule_pack=RulePack.DECLARATIONS,
+            requires_type_info=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        symbols = self.symbols(graph, context)
+        results: list[RuleResult] = []
+        reported: set[str] = set()
+
+        for name, decls in symbols.incompatible_declaration_groups():
+            for decl in decls:
+                if not decl.get("semantic_properties", {}).get("declaration_incompatible"):
+                    continue
+                if decl["node_id"] in reported:
+                    continue
+                reported.add(decl["node_id"])
+                results.append(
+                    self.make_result(
+                        context,
+                        graph,
+                        decl,
+                        explanation=(
+                            f"Declaration of '{name}' is incompatible with another declaration "
+                            "of the same identifier."
+                        ),
+                        risk_description="Incompatible declarations violate the one-declaration rule.",
+                        confidence_factors={
+                            "ast_match_specificity": 0.9,
+                            "type_information_complete": 0.85,
+                            "macro_clarity": 0.9,
+                            "historical_false_positive_rate": 0.1,
+                            "fix_generator_certainty": 0.4,
+                        },
+                        confidence_score=0.85,
+                        suggested_fix=SuggestedFix(
+                            original_code=AstGraph.offending_text(decl),
+                            suggested_code=f"align all declarations of '{name}' to the same type and qualifiers",
+                            rationale="Every declaration of an identifier must be compatible.",
+                            confidence_score=0.4,
+                        ),
+                    )
+                )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["extern int32_t sensor_count;\nint32_t sensor_count;"],
+            non_compliant=[
+                "extern int32_t sensor_count;\nextern const int32_t sensor_count; /* incompatible */"
+            ],
+        )
+
+
+class Rule17_8(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-17-8",
+            rule_number="17.8",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.ADVISORY,
+            severity=RuleSeverity.MINOR,
+            title="A function parameter should not be modified",
+            description="A function parameter shall not be modified within the function body.",
+            rationale="Modifying a parameter obscures whether the caller's object is affected.",
+            tags=["declarations", "dataflow", "parameters"],
+            references=["MISRA C:2012 Rule 17.8"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations",
+            requires_ast_nodes=["FunctionDecl", "ParmVarDecl"],
+            implementation_category=RuleImplementationCategory.D_DATA_FLOW,
+            rule_pack=RulePack.DECLARATIONS,
+            requires_cfg=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        results: list[RuleResult] = []
+
+        for function_node in graph.nodes_by_kind("FunctionDecl"):
+            has_body = any(
+                child.get("node_kind") == "CompoundStmt"
+                for child in graph.children(function_node["node_id"])
+            )
+            if not has_body:
+                continue
+            cfg = self.cfg_v2(function_node, graph, context)
+            dataflow = self.dataflow_v2(function_node=function_node, graph=graph, context=context)
+            for ref in dataflow.modified_parameters(function_node, cfg, graph):
+                param_name = ref.get("semantic_properties", {}).get("name", "<param>")
+                results.append(
+                    self.make_result(
+                        context,
+                        graph,
+                        ref,
+                        explanation=f"Function parameter '{param_name}' is modified.",
+                        risk_description="Modifying a parameter can confuse callers about side effects.",
+                        confidence_factors={
+                            "ast_match_specificity": 0.85,
+                            "type_information_complete": 0.8,
+                            "macro_clarity": 0.85,
+                            "historical_false_positive_rate": 0.15,
+                            "fix_generator_certainty": 0.45,
+                        },
+                        confidence_score=0.78,
+                        suggested_fix=SuggestedFix(
+                            original_code=AstGraph.offending_text(ref),
+                            suggested_code=f"use a local copy instead of modifying '{param_name}'",
+                            rationale="Copy the parameter to a local variable before mutation.",
+                            confidence_score=0.45,
+                        ),
+                    )
+                )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["void process(uint16_t value) {\n    uint16_t local = value;\n    local++;\n}"],
+            non_compliant=["void process(uint16_t value) {\n    value++; /* parameter modified */\n}"],
+        )
+
+
+class Rule8_13(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-8-13",
+            rule_number="8.13",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.ADVISORY,
+            severity=RuleSeverity.MINOR,
+            title="A pointer should point to a const-qualified type where possible",
+            description="A pointer parameter or variable should use const when the pointee is never modified.",
+            rationale="Const-qualified pointers document read-only intent and catch accidental writes.",
+            tags=["declarations", "pointers", "const"],
+            references=["MISRA C:2012 Rule 8.13"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations",
+            requires_ast_nodes=["VarDecl", "ParmVarDecl"],
+            implementation_category=RuleImplementationCategory.D_DATA_FLOW,
+            rule_pack=RulePack.DECLARATIONS,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        results: list[RuleResult] = []
+
+        for kind in ("VarDecl", "ParmVarDecl"):
+            for node in graph.nodes_by_kind(kind):
+                type_info = node.get("type_information", {})
+                if not type_info.get("is_pointer"):
+                    continue
+                if "const" in node.get("qualifiers", []):
+                    continue
+                if not node.get("semantic_properties", {}).get("pointer_should_be_const"):
+                    continue
+                name = node.get("semantic_properties", {}).get("name", "<pointer>")
+                results.append(
+                    self.make_result(
+                        context,
+                        graph,
+                        node,
+                        explanation=f"Pointer '{name}' could be declared with a const-qualified pointee type.",
+                        risk_description="A non-const pointer invites accidental modification of read-only data.",
+                        confidence_factors={
+                            "ast_match_specificity": 0.8,
+                            "type_information_complete": 0.75,
+                            "macro_clarity": 0.85,
+                            "historical_false_positive_rate": 0.2,
+                            "fix_generator_certainty": 0.55,
+                        },
+                        confidence_score=0.72,
+                        suggested_fix=SuggestedFix(
+                            original_code=AstGraph.offending_text(node),
+                            suggested_code=f"declare '{name}' as a pointer to const",
+                            rationale="Use const when the pointee is never modified through this pointer.",
+                            confidence_score=0.55,
+                        ),
+                    )
+                )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["void print(const uint8_t *buffer) { /* read-only */ }"],
+            non_compliant=["void print(uint8_t *buffer) { /* never writes through buffer */ }"],
+        )
+
+
+def _meta_true(value: object) -> bool:
+    return value is True or value == "true"
+
+
+class Rule8_11(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-8-11",
+            rule_number="8.11",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.ADVISORY,
+            severity=RuleSeverity.MINOR,
+            title="An array with external linkage should be declared with an explicit size",
+            description="An array with external linkage should declare its size explicitly.",
+            rationale="Unsized extern arrays make bounds reasoning impossible at link time.",
+            tags=["declarations", "arrays", "linkage"],
+            references=["MISRA C:2012 Rule 8.11"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations",
+            requires_ast_nodes=["VarDecl"],
+            implementation_category=RuleImplementationCategory.B_TYPE_SYSTEM,
+            rule_pack=RulePack.DECLARATIONS,
+            requires_type_info=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        results: list[RuleResult] = []
+        for node in graph.nodes_by_kind("VarDecl"):
+            props = node.get("semantic_properties", {})
+            type_info = node.get("type_information", {})
+            if props.get("linkage") != "external":
+                continue
+            if not type_info.get("is_array"):
+                continue
+            if not _meta_true(props.get("missing_array_size")):
+                continue
+            name = props.get("name", "<array>")
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation=f"Externally-linked array '{name}' lacks an explicit size.",
+                    risk_description="Unsized extern arrays hide the intended bound from other translation units.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.9,
+                        "type_information_complete": 0.85,
+                        "macro_clarity": 0.9,
+                        "historical_false_positive_rate": 0.1,
+                        "fix_generator_certainty": 0.5,
+                    },
+                    confidence_score=0.85,
+                    suggested_fix=SuggestedFix(
+                        original_code=AstGraph.offending_text(node),
+                        suggested_code=f"give extern array '{name}' an explicit bound",
+                        rationale="Declare the array size at its external definition/declaration.",
+                        confidence_score=0.5,
+                    ),
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["extern uint8_t buffer[64];"],
+            non_compliant=["extern uint8_t buffer[];"],
+        )
+
+
+class Rule8_12(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-8-12",
+            rule_number="8.12",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="Within an enumerator list the value of an implicit enumerator shall be unique",
+            description="Implicit enumerator values shall not collide within the same enum.",
+            rationale="Duplicate implicit enumerator values are almost always a maintenance mistake.",
+            tags=["declarations", "enumerations"],
+            references=["MISRA C:2012 Rule 8.12"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations",
+            requires_ast_nodes=["EnumConstantDecl"],
+            implementation_category=RuleImplementationCategory.B_TYPE_SYSTEM,
+            rule_pack=RulePack.DECLARATIONS,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        results: list[RuleResult] = []
+        reported: set[str] = set()
+
+        for node in graph.nodes_by_kind("EnumConstantDecl"):
+            props = node.get("semantic_properties", {})
+            if _meta_true(props.get("duplicate_implicit_enumerator")):
+                if node["node_id"] not in reported:
+                    reported.add(node["node_id"])
+                    results.append(self._enum_result(context, graph, node))
+
+        implicit_by_parent: dict[str, dict[int, dict]] = {}
+        for node in graph.nodes_by_kind("EnumConstantDecl"):
+            if node["node_id"] in reported:
+                continue
+            props = node.get("semantic_properties", {})
+            if not _meta_true(props.get("is_implicit_enumerator")):
+                continue
+            parent = node.get("parent_id", "")
+            try:
+                value = int(props.get("enumerator_value", -1))
+            except (TypeError, ValueError):
+                continue
+            first = implicit_by_parent.setdefault(parent, {}).get(value)
+            if first is None:
+                implicit_by_parent.setdefault(parent, {})[value] = node
+                continue
+            if first["node_id"] not in reported:
+                reported.add(first["node_id"])
+                results.append(self._enum_result(context, graph, first))
+            if node["node_id"] not in reported:
+                reported.add(node["node_id"])
+                results.append(self._enum_result(context, graph, node))
+        return results
+
+    def _enum_result(self, context: RuleContext, graph: AstGraph, node: dict) -> RuleResult:
+        name = node.get("semantic_properties", {}).get("name", "<enumerator>")
+        return self.make_result(
+            context,
+            graph,
+            node,
+            explanation=f"Implicit enumerator '{name}' duplicates another implicit value in the same enum.",
+            risk_description="Duplicate implicit enumerator values are confusing and often unintended.",
+            confidence_factors={
+                "ast_match_specificity": 0.9,
+                "type_information_complete": 0.85,
+                "macro_clarity": 0.9,
+                "historical_false_positive_rate": 0.1,
+                "fix_generator_certainty": 0.45,
+            },
+            confidence_score=0.85,
+            suggested_fix=SuggestedFix(
+                original_code=name,
+                suggested_code=f"assign '{name}' an explicit unique enumerator value",
+                rationale="Give every enumerator an explicit, unique value.",
+                confidence_score=0.45,
+            ),
+        )
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["enum mode_tag { MODE_A = 0, MODE_B = 1, MODE_C = 2 };"],
+            non_compliant=["enum mode_tag { MODE_A, MODE_B = 0, MODE_C }; /* duplicate implicit 0 */"],
+        )
+
+
+class Rule17_5(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-17-5",
+            rule_number="17.5",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.ADVISORY,
+            severity=RuleSeverity.MINOR,
+            title="The function argument corresponding to an array parameter shall have an appropriate type",
+            description="A call argument passed to an array parameter should match the declared array shape.",
+            rationale="Array parameter decay makes mismatched argument shapes easy to miss.",
+            tags=["declarations", "functions", "arrays"],
+            references=["MISRA C:2012 Rule 17.5"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations",
+            requires_ast_nodes=["CallExpr"],
+            implementation_category=RuleImplementationCategory.B_TYPE_SYSTEM,
+            rule_pack=RulePack.DECLARATIONS,
+            requires_type_info=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        results: list[RuleResult] = []
+        for node in graph.nodes_by_kind("CallExpr"):
+            if not _meta_true(node.get("semantic_properties", {}).get("call_argument_shape_mismatch")):
+                continue
+            callee = node.get("semantic_properties", {}).get("callee", "<callee>")
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation=f"Call to '{callee}' passes an argument whose shape does not match the array parameter.",
+                    risk_description="Mismatched array argument shapes can hide size/bounds errors.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.85,
+                        "type_information_complete": 0.8,
+                        "macro_clarity": 0.85,
+                        "historical_false_positive_rate": 0.2,
+                        "fix_generator_certainty": 0.4,
+                    },
+                    confidence_score=0.78,
+                    suggested_fix=SuggestedFix(
+                        original_code=AstGraph.offending_text(node),
+                        suggested_code="pass an argument matching the declared array parameter type",
+                        rationale="Align call-site argument types with the prototype array parameter.",
+                        confidence_score=0.4,
+                    ),
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["void copy(uint8_t dest[8], const uint8_t src[8]);\ncopy(out, in);"],
+            non_compliant=["void copy(uint8_t dest[8], const uint8_t src[8]);\ncopy(out, scalar);"],
+        )
+
+
+class Rule18_8(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-18-8",
+            rule_number="18.8",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="Variable-length array types shall not be used",
+            description="A variable-length array type shall not be declared.",
+            rationale="VLAs have undefined behaviour on overflow and complicate stack analysis.",
+            tags=["declarations", "arrays"],
+            references=["MISRA C:2012 Rule 18.8"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations",
+            requires_ast_nodes=["VarDecl"],
+            implementation_category=RuleImplementationCategory.B_TYPE_SYSTEM,
+            rule_pack=RulePack.DECLARATIONS,
+            requires_type_info=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        results: list[RuleResult] = []
+        for node in graph.nodes_by_kind("VarDecl"):
+            if not node.get("type_information", {}).get("is_variable_length_array"):
+                continue
+            name = node.get("semantic_properties", {}).get("name", "<array>")
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation=f"'{name}' is declared as a variable-length array.",
+                    risk_description="VLAs are not permitted in this safety profile.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.97,
+                        "type_information_complete": 0.92,
+                        "macro_clarity": 0.95,
+                        "historical_false_positive_rate": 0.03,
+                        "fix_generator_certainty": 0.5,
+                    },
+                    confidence_score=0.92,
+                    suggested_fix=SuggestedFix(
+                        original_code=AstGraph.offending_text(node),
+                        suggested_code="use a fixed-size array or separately allocated buffer",
+                        rationale="Avoid variable-length array types entirely.",
+                        confidence_score=0.5,
+                    ),
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["uint8_t buffer[64];"],
+            non_compliant=["void f(size_t n) {\n    uint8_t buffer[n];\n}"],
+        )

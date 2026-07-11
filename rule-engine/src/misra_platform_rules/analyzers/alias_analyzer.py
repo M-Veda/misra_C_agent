@@ -247,3 +247,196 @@ class AliasAnalyzer:
 
     def all_pointer_names(self) -> list[str]:
         return list(self._points_to.keys())
+
+    # ------------------------------------------------------------------
+    # Phase 6.5: alias-driven violation queries (intra-procedural)
+    # ------------------------------------------------------------------
+
+    _MEM_COMPAT_CALLEES = frozenset({"memcpy", "memmove", "memcmp"})
+    _STRING_OVERFLOW_CALLEES = frozenset({"strcpy", "strcat", "sprintf", "snprintf", "gets"})
+    _SIZE_BOUND_CALLEES = frozenset({"memcpy", "memmove", "memset", "strncpy"})
+    _STRING_INVALIDATORS = frozenset({"strtok", "asctime", "ctime", "gmtime", "localtime"})
+    _FILE_INVALIDATORS = frozenset({"fclose"})
+
+    def _function_nodes(self, function_node: dict[str, Any], graph: "AstGraph") -> list[dict[str, Any]]:
+        return [function_node, *graph.descendants(function_node["node_id"])]
+
+    def _decl_ref_names_in(self, node: dict[str, Any], graph: "AstGraph") -> list[str]:
+        names: list[str] = []
+        for descendant in [node, *graph.descendants(node["node_id"])]:
+            if descendant.get("node_kind") != "DeclRefExpr":
+                continue
+            name = descendant.get("semantic_properties", {}).get("name", "")
+            if name:
+                names.append(name)
+        return names
+
+    def _aliases_of(self, name: str) -> set[str]:
+        group = {name}
+        for other in self.all_pointer_names():
+            if other == name:
+                continue
+            if self.may_alias(name, other)[0]:
+                group.add(other)
+        return group
+
+    def pointer_arithmetic_violations(
+        self, function_node: dict[str, Any], graph: "AstGraph"
+    ) -> list[dict[str, Any]]:
+        """Pointer arithmetic that may address outside the bounds of an array."""
+        violations: list[dict[str, Any]] = []
+        for node in self._function_nodes(function_node, graph):
+            props = node.get("semantic_properties", {})
+            if props.get("pointer_arithmetic_out_of_bounds"):
+                violations.append(node)
+                continue
+            if node.get("node_kind") not in ("BinaryOperator", "UnaryOperator"):
+                continue
+            if not props.get("is_pointer_arithmetic"):
+                continue
+            pointer_name = props.get("pointer_name", "")
+            if not pointer_name:
+                continue
+            pointees = self.points_to(pointer_name)
+            if not pointees:
+                continue
+            if props.get("offset_exceeds_array_size"):
+                violations.append(node)
+        return violations
+
+    def incompatible_mem_calls(
+        self, function_node: dict[str, Any], graph: "AstGraph"
+    ) -> list[dict[str, Any]]:
+        """memcpy/memmove/memcmp with incompatible pointer argument types."""
+        violations: list[dict[str, Any]] = []
+        for node in self._function_nodes(function_node, graph):
+            if node.get("node_kind") != "CallExpr":
+                continue
+            callee = node.get("semantic_properties", {}).get("callee", "")
+            if callee not in self._MEM_COMPAT_CALLEES:
+                continue
+            if node.get("semantic_properties", {}).get("incompatible_pointer_args"):
+                violations.append(node)
+                continue
+            args = graph.children(node["node_id"])
+            if len(args) < 2:
+                continue
+            left_type = args[0].get("type_information", {}).get("pointee_type", "")
+            right_type = args[1].get("type_information", {}).get("pointee_type", "")
+            if left_type and right_type and left_type != right_type:
+                if "void" not in (left_type, right_type):
+                    violations.append(node)
+        return violations
+
+    def string_buffer_overflow_calls(
+        self, function_node: dict[str, Any], graph: "AstGraph"
+    ) -> list[dict[str, Any]]:
+        violations: list[dict[str, Any]] = []
+        for node in self._function_nodes(function_node, graph):
+            if node.get("node_kind") != "CallExpr":
+                continue
+            callee = node.get("semantic_properties", {}).get("callee", "")
+            if callee not in self._STRING_OVERFLOW_CALLEES:
+                continue
+            if node.get("semantic_properties", {}).get("string_buffer_overflow"):
+                violations.append(node)
+        return violations
+
+    def size_exceeds_destination_calls(
+        self, function_node: dict[str, Any], graph: "AstGraph"
+    ) -> list[dict[str, Any]]:
+        violations: list[dict[str, Any]] = []
+        for node in self._function_nodes(function_node, graph):
+            if node.get("node_kind") != "CallExpr":
+                continue
+            callee = node.get("semantic_properties", {}).get("callee", "")
+            if callee not in self._SIZE_BOUND_CALLEES:
+                continue
+            if node.get("semantic_properties", {}).get("size_exceeds_destination"):
+                violations.append(node)
+        return violations
+
+    def use_after_string_invalidation_reads(
+        self, function_node: dict[str, Any], graph: "AstGraph"
+    ) -> list[dict[str, Any]]:
+        """Reads of string pointers invalidated by a subsequent library call."""
+        invalidated: set[str] = set()
+        violations: list[dict[str, Any]] = []
+        ordered = self._linearize(self._function_nodes(function_node, graph))
+
+        for node in ordered:
+            if node.get("node_kind") == "CallExpr":
+                callee = node.get("semantic_properties", {}).get("callee", "")
+                if callee in self._STRING_INVALIDATORS:
+                    for name in node.get("semantic_properties", {}).get("invalidated_pointers", []):
+                        invalidated.update(self._aliases_of(name))
+                    for name in self._decl_ref_names_in(node, graph):
+                        if name in self._points_to:
+                            invalidated.update(self._aliases_of(name))
+                continue
+
+            if node.get("node_kind") != "DeclRefExpr":
+                continue
+            if node.get("semantic_properties", {}).get("use_after_string_invalidation"):
+                violations.append(node)
+                continue
+            name = node.get("semantic_properties", {}).get("name", "")
+            if name and name in invalidated:
+                violations.append(node)
+
+        return violations
+
+    def use_after_file_close_reads(
+        self, function_node: dict[str, Any], graph: "AstGraph"
+    ) -> list[dict[str, Any]]:
+        """Uses of FILE pointers after fclose on an aliasing stream."""
+        closed: set[str] = set()
+        violations: list[dict[str, Any]] = []
+        ordered = self._linearize(self._function_nodes(function_node, graph))
+
+        for node in ordered:
+            if node.get("node_kind") == "CallExpr":
+                callee = node.get("semantic_properties", {}).get("callee", "")
+                if callee in self._FILE_INVALIDATORS:
+                    args = graph.children(node["node_id"])
+                    if args:
+                        for name in self._decl_ref_names_in(args[0], graph):
+                            closed.update(self._aliases_of(name))
+                continue
+
+            if node.get("node_kind") != "DeclRefExpr":
+                continue
+            parent = graph.get(node.get("parent_id", ""))
+            if parent and parent.get("node_kind") == "CallExpr":
+                if parent.get("semantic_properties", {}).get("callee") in self._FILE_INVALIDATORS:
+                    continue
+            if node.get("semantic_properties", {}).get("use_after_file_close"):
+                violations.append(node)
+                continue
+            name = node.get("semantic_properties", {}).get("name", "")
+            if name and name in closed:
+                violations.append(node)
+
+        return violations
+
+    def unsupported_patterns(self, function_node: dict[str, Any], graph: "AstGraph") -> list[str]:
+        """Alias shapes this analyzer cannot model precisely (for statistics)."""
+        patterns: list[str] = []
+        for node in self._function_nodes(function_node, graph):
+            kind = node.get("node_kind")
+            if kind == "CallExpr":
+                callee = node.get("semantic_properties", {}).get("callee", "")
+                if callee in {"malloc", "calloc", "realloc"}:
+                    patterns.append("heap_allocation_opaque_target")
+            if kind == "BinaryOperator" and node.get("semantic_properties", {}).get("is_pointer_arithmetic"):
+                pointer_name = node.get("semantic_properties", {}).get("pointer_name", "")
+                if pointer_name:
+                    pointees = self.points_to(pointer_name)
+                    if any(p.kind == "unknown" for p in pointees):
+                        patterns.append("pointer_arithmetic_unknown_pointee")
+            if kind == "DeclRefExpr":
+                name = node.get("semantic_properties", {}).get("name", "")
+                if name in self._points_to:
+                    if any(p.kind == "unknown" for p in self.points_to(name)):
+                        patterns.append("parameter_pointer_unknown_target")
+        return patterns

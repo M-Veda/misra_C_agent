@@ -1017,3 +1017,309 @@ class Rule14_2(BaseRulePlugin):
             compliant=["for (i = 0; i < 10; i++) {\n    process(i);\n}"],
             non_compliant=["for (i = 0; i < 10;) {\n    process(i);\n    i++; /* increment hidden in the body */\n}"],
         )
+
+
+class Rule2_6(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-2-6",
+            rule_number="2.6",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.ADVISORY,
+            severity=RuleSeverity.MINOR,
+            title="A function should not contain unused label declarations",
+            description="Every label in a function should be referenced by a goto statement.",
+            rationale="Unused labels are dead code that misleads readers about control flow.",
+            tags=["control-flow", "goto", "labels"],
+            references=["MISRA C:2012 Rule 2.6"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow",
+            requires_ast_nodes=["FunctionDecl", "LabelStmt", "GotoStmt"],
+            implementation_category=RuleImplementationCategory.A_AST_ONLY,
+            rule_pack=RulePack.CONTROL_FLOW,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        cfg = self.cfg()
+        results: list[RuleResult] = []
+
+        for function_node in graph.nodes_by_kind("FunctionDecl"):
+            targeted = {
+                goto.get("semantic_properties", {}).get("target_label", "")
+                for goto in cfg.goto_targets(function_node, graph)
+            }
+            for label in cfg.labels(function_node, graph):
+                name = label.get("semantic_properties", {}).get("name", "")
+                if not name or name in targeted:
+                    continue
+                results.append(
+                    self.make_result(
+                        context,
+                        graph,
+                        label,
+                        explanation=f"Label '{name}' is declared but never referenced by a goto.",
+                        risk_description="Unused labels are dead control-flow surface.",
+                        confidence_factors={
+                            "ast_match_specificity": 0.95,
+                            "type_information_complete": 0.9,
+                            "macro_clarity": 0.9,
+                            "historical_false_positive_rate": 0.05,
+                            "fix_generator_certainty": 0.5,
+                        },
+                        confidence_score=0.88,
+                        suggested_fix=SuggestedFix(
+                            original_code=AstGraph.offending_text(label),
+                            suggested_code="remove the unused label",
+                            rationale="Delete labels that no goto references.",
+                            confidence_score=0.5,
+                        ),
+                    )
+                )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["if (error) {\n    goto cleanup;\n}\ncleanup:\n    return;"],
+            non_compliant=["unused:\n    return; /* no goto references this label */"],
+        )
+
+
+class Rule14_1(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-14-1",
+            rule_number="14.1",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="A loop counter shall not have essentially floating type",
+            description="A for-loop counter variable shall not have essentially floating type.",
+            rationale="Floating loop counters accumulate rounding error and make termination unpredictable.",
+            tags=["control-flow", "loops", "essential-types"],
+            references=["MISRA C:2012 Rule 14.1"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow",
+            requires_ast_nodes=["ForStmt"],
+            implementation_category=RuleImplementationCategory.B_TYPE_SYSTEM,
+            rule_pack=RulePack.CONTROL_FLOW,
+            requires_type_info=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        classifier = self.expressions()
+        results: list[RuleResult] = []
+
+        for node in graph.nodes_by_kind("ForStmt"):
+            if not classifier.loop_counter_is_floating(node, graph):
+                continue
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation="Loop counter has essentially floating type.",
+                    risk_description="Floating loop counters make termination analysis unreliable.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.88,
+                        "type_information_complete": 0.85,
+                        "macro_clarity": 0.9,
+                        "historical_false_positive_rate": 0.1,
+                        "fix_generator_certainty": 0.45,
+                    },
+                    confidence_score=0.85,
+                    suggested_fix=SuggestedFix(
+                        original_code=AstGraph.offending_text(node),
+                        suggested_code="use an integer loop counter",
+                        rationale="Loop counters shall have integer essential type.",
+                        confidence_score=0.45,
+                    ),
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["for (uint16_t i = 0U; i < count; i++) { /* ... */ }"],
+            non_compliant=["for (float32_t i = 0.0f; i < limit; i += 0.1f) { /* ... */ }"],
+        )
+
+
+class Rule16_7(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-16-7",
+            rule_number="16.7",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="A switch-expression shall not have essentially Boolean type",
+            description="The controlling expression of a switch statement shall not have essentially Boolean type.",
+            rationale="Boolean switch expressions usually indicate a design error (if/else is clearer).",
+            tags=["control-flow", "switch", "essential-types"],
+            references=["MISRA C:2012 Rule 16.7"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow",
+            requires_ast_nodes=["SwitchStmt"],
+            implementation_category=RuleImplementationCategory.B_TYPE_SYSTEM,
+            rule_pack=RulePack.CONTROL_FLOW,
+            requires_type_info=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        classifier = self.expressions()
+        results: list[RuleResult] = []
+
+        for node in graph.nodes_by_kind("SwitchStmt"):
+            if not classifier.switch_condition_is_boolean(node, graph):
+                continue
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation="Switch controlling expression has essentially Boolean type.",
+                    risk_description="Boolean switch expressions are usually better expressed as if/else.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.9,
+                        "type_information_complete": 0.85,
+                        "macro_clarity": 0.9,
+                        "historical_false_positive_rate": 0.1,
+                        "fix_generator_certainty": 0.5,
+                    },
+                    confidence_score=0.85,
+                    suggested_fix=SuggestedFix(
+                        original_code=AstGraph.offending_text(node),
+                        suggested_code="replace the switch with an if/else on the Boolean expression",
+                        rationale="Use if/else for essentially Boolean conditions.",
+                        confidence_score=0.5,
+                    ),
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["switch (mode) {\n    case MODE_A: break;\n    default: break;\n}"],
+            non_compliant=["switch (enabled) {\n    case true: break;\n    case false: break;\n}"],
+        )
+
+
+class Rule16_1(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-16-1",
+            rule_number="16.1",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="All switch statements shall be well-formed",
+            description="Every switch statement shall have a compound-statement body with at least one switch clause.",
+            rationale="A malformed switch hides control-flow structure and is easy to misread during review.",
+            tags=["control-flow", "switch", "cfg"],
+            references=["MISRA C:2012 Rule 16.1"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow",
+            requires_ast_nodes=["SwitchStmt"],
+            implementation_category=RuleImplementationCategory.C_CONTROL_FLOW,
+            rule_pack=RulePack.CONTROL_FLOW,
+            requires_cfg=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        cfg = self.cfg()
+        results: list[RuleResult] = []
+
+        for node in graph.nodes_by_kind("SwitchStmt"):
+            if not cfg.switch_is_malformed(node, graph):
+                continue
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation="Switch statement is not well-formed.",
+                    risk_description="A switch without a proper compound body or clauses is hard to verify.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.9,
+                        "type_information_complete": 0.85,
+                        "macro_clarity": 0.9,
+                        "historical_false_positive_rate": 0.1,
+                        "fix_generator_certainty": 0.5,
+                    },
+                    confidence_score=0.85,
+                    suggested_fix=SuggestedFix(
+                        original_code=AstGraph.offending_text(node),
+                        suggested_code="wrap the switch body in { } and add at least one case/default clause",
+                        rationale="Give every switch a compound statement body with switch clauses.",
+                        confidence_score=0.5,
+                    ),
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["switch (mode) {\n    case A: break;\n    default: break;\n}"],
+            non_compliant=["switch (mode)\n    case A: break; /* no compound body */"],
+        )
+
+
+class Rule14_3(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-14-3",
+            rule_number="14.3",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="Controlling expressions shall not be invariant",
+            description="The controlling expression of an if/iteration statement shall not be invariant.",
+            rationale="An invariant controlling expression makes the branch or loop dead or unconditional.",
+            tags=["control-flow", "dataflow"],
+            references=["MISRA C:2012 Rule 14.3"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow",
+            requires_ast_nodes=["IfStmt", "WhileStmt", "ForStmt"],
+            implementation_category=RuleImplementationCategory.D_DATA_FLOW,
+            rule_pack=RulePack.CONTROL_FLOW,
+            requires_cfg=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        classifier = self.expressions()
+        results: list[RuleResult] = []
+
+        for kind in ("IfStmt", "WhileStmt", "ForStmt"):
+            for node in graph.nodes_by_kind(kind):
+                if not classifier.controlling_expression_invariant(node, graph):
+                    continue
+                results.append(
+                    self.make_result(
+                        context,
+                        graph,
+                        node,
+                        explanation="Controlling expression is invariant on every execution.",
+                        risk_description="Invariant conditions hide unreachable or unconditional control flow.",
+                        confidence_factors={
+                            "ast_match_specificity": 0.85,
+                            "type_information_complete": 0.8,
+                            "macro_clarity": 0.85,
+                            "historical_false_positive_rate": 0.15,
+                            "fix_generator_certainty": 0.35,
+                        },
+                        confidence_score=0.78,
+                        suggested_fix=None,
+                    )
+                )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["if (ready) {\n    process();\n}"],
+            non_compliant=["if (1) {\n    process(); /* invariant condition */\n}"],
+        )

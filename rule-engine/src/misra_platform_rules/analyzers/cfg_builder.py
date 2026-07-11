@@ -63,6 +63,34 @@ class CFGBuilder:
             current_id = parent.get("parent_id", "")
         return depth
 
+    def switch_is_malformed(self, switch_node: dict[str, Any], graph: "AstGraph") -> bool:
+        """MISRA Rule 16.1: a switch without a compound-statement body, with
+        no switch clauses, or explicitly flagged as malformed."""
+        if switch_node.get("semantic_properties", {}).get("switch_malformed"):
+            return True
+        body_candidates = [
+            child
+            for child in graph.children(switch_node["node_id"])
+            if child.get("node_kind") == "CompoundStmt"
+        ]
+        if not body_candidates:
+            return True
+        return self.switch_has_no_clauses(switch_node, graph)
+
+    def switch_has_no_clauses(self, switch_node: dict[str, Any], graph: "AstGraph") -> bool:
+        body_candidates = [
+            child
+            for child in graph.children(switch_node["node_id"])
+            if child.get("node_kind") == "CompoundStmt"
+        ]
+        if not body_candidates:
+            return True
+        body = body_candidates[0]
+        return not any(
+            child.get("node_kind") in ("CaseStmt", "DefaultStmt")
+            for child in graph.children(body["node_id"])
+        )
+
     def switch_blocks_without_terminator(
         self, switch_node: dict[str, Any], graph: "AstGraph"
     ) -> list[dict[str, Any]]:

@@ -97,3 +97,70 @@ class MacroAnalyzer:
             for directive in self.include_directives(macro_table)
             if not directive.get("is_system") and not directive.get("resolved_path")
         ]
+
+    def preprocessor_directives(self, macro_table: dict[str, Any]) -> list[dict[str, Any]]:
+        return macro_table.get("preprocessor_directives", [])
+
+    @staticmethod
+    def normalize_header_name(name: str) -> str:
+        """Strip delimiters so ``<stdio.h>`` and ``"stdio.h"`` compare equal."""
+        stripped = name.strip()
+        if stripped.startswith("<") and stripped.endswith(">"):
+            return stripped[1:-1]
+        if stripped.startswith('"') and stripped.endswith('"'):
+            return stripped[1:-1]
+        return stripped
+
+    def header_matches(self, directive: dict[str, Any], forbidden_headers: set[str]) -> bool:
+        header = directive.get("header") or directive.get("included_file", "")
+        normalized = self.normalize_header_name(header)
+        return normalized in forbidden_headers
+
+    def includes_matching(self, macro_table: dict[str, Any], forbidden_headers: set[str]) -> list[dict[str, Any]]:
+        return [d for d in self.include_directives(macro_table) if self.header_matches(d, forbidden_headers)]
+
+    def include_has_invalid_header_chars(self, directive: dict[str, Any]) -> bool:
+        if directive.get("invalid_header_chars"):
+            return True
+        header = directive.get("header") or directive.get("included_file", "")
+        return any(marker in header for marker in ('"', "\\", "/*", "//"))
+
+    def include_has_invalid_syntax(self, directive: dict[str, Any]) -> bool:
+        return bool(directive.get("invalid_syntax"))
+
+    def include_preceded_by_non_preprocessor(self, directive: dict[str, Any]) -> bool:
+        return bool(directive.get("preceded_by_non_preprocessor"))
+
+    def macro_has_invalid_preprocessor_tokens(self, macro_def: dict[str, Any]) -> bool:
+        return bool(macro_def.get("invalid_preprocessor_tokens"))
+
+    def macro_stringify_param_unparenthesized_operator(self, macro_def: dict[str, Any]) -> bool:
+        return bool(macro_def.get("stringify_param_unparenthesized_operator"))
+
+    def macro_param_mixed_stringify_and_paste(self, macro_def: dict[str, Any]) -> bool:
+        return bool(macro_def.get("param_mixed_stringify_and_paste"))
+
+    def conditional_non_boolean_controlling_expression(self, branch: dict[str, Any]) -> bool:
+        return branch.get("directive") in ("if", "elif") and bool(
+            branch.get("non_boolean_controlling_expression")
+        )
+
+    def conditional_undefined_identifiers(self, branch: dict[str, Any]) -> list[str]:
+        if branch.get("directive") not in ("if", "elif"):
+            return []
+        return list(branch.get("undefined_identifiers", []))
+
+    def directive_has_invalid_form(self, directive: dict[str, Any]) -> bool:
+        return bool(directive.get("invalid_form"))
+
+    def undef_directives(self, macro_table: dict[str, Any]) -> list[dict[str, Any]]:
+        """Phase 7: #undef events emitted by clang-worker PreprocessorMetadata."""
+        return macro_table.get("undef_directives", [])
+
+    def macros_using_token_operators(self, macro_table: dict[str, Any]) -> list[dict[str, Any]]:
+        """Phase 7: macro definitions whose body uses # and/or ## (Rule 20.10)."""
+        return [
+            macro_def
+            for macro_def in self.macro_definitions(macro_table)
+            if macro_def.get("uses_stringify") or macro_def.get("uses_token_paste")
+        ]

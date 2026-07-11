@@ -510,3 +510,326 @@ class Rule19_1(BaseRulePlugin):
                 "uint8_t *p = &buffer[0];\nuint8_t *q = &buffer[0]; /* aliases p */\nmemcpy(p, q, n);"
             ],
         )
+
+
+class Rule11_3(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-11-3",
+            rule_number="11.3",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="A cast shall not convert a pointer to an object type to a pointer to a different object type",
+            description=(
+                "A cast shall not convert a pointer to one object type into a pointer to "
+                "a different object type."
+            ),
+            rationale="Object-pointer casts bypass the type system and can produce misaligned access.",
+            tags=["pointers", "casts"],
+            references=["MISRA C:2012 Rule 11.3"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_pointers",
+            requires_ast_nodes=["CStyleCastExpr"],
+            implementation_category=RuleImplementationCategory.B_TYPE_SYSTEM,
+            rule_pack=RulePack.POINTERS,
+            requires_type_info=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        casts = self.casts()
+        results: list[RuleResult] = []
+
+        for node in graph.nodes_by_kind("CStyleCastExpr"):
+            children = graph.children(node["node_id"])
+            if not children:
+                continue
+            operand = children[0]
+            if not casts.changes_object_pointer_type(node, operand):
+                continue
+            target_pointee = node.get("type_information", {}).get("pointee_type", "")
+            source_pointee = operand.get("type_information", {}).get("pointee_type", "")
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation=(
+                        f"Cast converts pointer-to-'{source_pointee}' into pointer-to-'{target_pointee}'."
+                    ),
+                    risk_description="Object-pointer casts can produce misaligned or invalid access.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.9,
+                        "type_information_complete": 0.88,
+                        "macro_clarity": 0.9,
+                        "historical_false_positive_rate": 0.1,
+                        "fix_generator_certainty": 0.25,
+                    },
+                    confidence_score=0.86,
+                    suggested_fix=None,
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["uint8_t *p = &buffer[0];"],
+            non_compliant=["uint16_t *q = (uint16_t *)&buffer[0]; /* different object type */"],
+        )
+
+
+class Rule11_7(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-11-7",
+            rule_number="11.7",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="A cast shall not convert a pointer type to a non-integer arithmetic type",
+            description=(
+                "A cast shall not convert a pointer type into a floating-point arithmetic type."
+            ),
+            rationale="Pointer-to-float casts are non-portable and hide the true representation.",
+            tags=["pointers", "casts"],
+            references=["MISRA C:2012 Rule 11.7"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_pointers",
+            requires_ast_nodes=["CStyleCastExpr"],
+            implementation_category=RuleImplementationCategory.B_TYPE_SYSTEM,
+            rule_pack=RulePack.POINTERS,
+            requires_type_info=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        casts = self.casts()
+        results: list[RuleResult] = []
+
+        for node in graph.nodes_by_kind("CStyleCastExpr"):
+            children = graph.children(node["node_id"])
+            if not children:
+                continue
+            operand = children[0]
+            if not casts.casts_pointer_to_non_integer_arithmetic(node, operand):
+                continue
+            target_type = node.get("essential_type", "unknown")
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation=f"Pointer cast to non-integer arithmetic essential type '{target_type}'.",
+                    risk_description="Pointer-to-floating conversions are non-portable and unsafe.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.9,
+                        "type_information_complete": 0.85,
+                        "macro_clarity": 0.88,
+                        "historical_false_positive_rate": 0.1,
+                        "fix_generator_certainty": 0.2,
+                    },
+                    confidence_score=0.85,
+                    suggested_fix=None,
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["uintptr_t address = (uintptr_t)ptr;"],
+            non_compliant=["double value = (double)ptr; /* pointer to float */"],
+        )
+
+
+class Rule18_1(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-18-1",
+            rule_number="18.1",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="Pointer arithmetic shall only address elements of the same array",
+            description="Pointer arithmetic shall only be applied to pointers that address elements of an array.",
+            rationale="Pointer arithmetic outside an array's bounds is undefined behaviour.",
+            tags=["pointers", "aliasing", "pointer-arithmetic"],
+            references=["MISRA C:2012 Rule 18.1"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_pointers",
+            requires_ast_nodes=["FunctionDecl", "BinaryOperator"],
+            implementation_category=RuleImplementationCategory.D_DATA_FLOW,
+            rule_pack=RulePack.POINTERS,
+            requires_dataflow=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        results: list[RuleResult] = []
+
+        for function_node in graph.nodes_by_kind("FunctionDecl"):
+            if not any(
+                child.get("node_kind") == "CompoundStmt" for child in graph.children(function_node["node_id"])
+            ):
+                continue
+            aliases = self.aliases(function_node, graph, context)
+            for node in aliases.pointer_arithmetic_violations(function_node, graph):
+                results.append(
+                    self.make_result(
+                        context,
+                        graph,
+                        node,
+                        explanation="Pointer arithmetic may address outside the bounds of an array.",
+                        risk_description="Out-of-bounds pointer arithmetic is undefined behaviour.",
+                        confidence_factors={
+                            "ast_match_specificity": 0.85,
+                            "type_information_complete": 0.75,
+                            "macro_clarity": 0.85,
+                            "historical_false_positive_rate": 0.2,
+                            "fix_generator_certainty": 0.4,
+                        },
+                        confidence_score=0.78,
+                        suggested_fix=SuggestedFix(
+                            original_code=AstGraph.offending_text(node),
+                            suggested_code="use array indexing with a verified bound",
+                            rationale="Index the array instead of advancing a pointer past its end.",
+                            confidence_score=0.4,
+                        ),
+                    )
+                )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["uint8_t value = buffer[index];"],
+            non_compliant=["uint8_t *p = buffer + ARRAY_SIZE; /* past the end */"],
+        )
+
+
+def _meta_true(value: object) -> bool:
+    return value is True or value == "true"
+
+
+class Rule11_2(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-11-2",
+            rule_number="11.2",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.REQUIRED,
+            severity=RuleSeverity.MAJOR,
+            title="Conversions shall not be performed between a pointer to an incomplete type and any other type",
+            description="A cast shall not convert to or from a pointer to an incomplete type.",
+            rationale="Incomplete-type pointer conversions bypass essential type checking.",
+            tags=["pointers", "casts", "incomplete-types"],
+            references=["MISRA C:2012 Rule 11.2"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_pointers",
+            requires_ast_nodes=["CStyleCastExpr"],
+            implementation_category=RuleImplementationCategory.B_TYPE_SYSTEM,
+            rule_pack=RulePack.POINTERS,
+            requires_type_info=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        results: list[RuleResult] = []
+        for node in graph.nodes_by_kind("CStyleCastExpr"):
+            props = node.get("semantic_properties", {})
+            if not (
+                _meta_true(props.get("converts_to_incomplete"))
+                or _meta_true(props.get("converts_from_incomplete"))
+            ):
+                continue
+            results.append(
+                self.make_result(
+                    context,
+                    graph,
+                    node,
+                    explanation="Cast converts to or from a pointer to an incomplete type.",
+                    risk_description="Incomplete-type conversions are unsafe and non-portable.",
+                    confidence_factors={
+                        "ast_match_specificity": 0.92,
+                        "type_information_complete": 0.88,
+                        "macro_clarity": 0.9,
+                        "historical_false_positive_rate": 0.1,
+                        "fix_generator_certainty": 0.35,
+                    },
+                    confidence_score=0.85,
+                    suggested_fix=SuggestedFix(
+                        original_code=AstGraph.offending_text(node),
+                        suggested_code="complete the type before converting the pointer",
+                        rationale="Avoid casts involving incomplete object types.",
+                        confidence_score=0.35,
+                    ),
+                )
+            )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["struct complete_tag *p = get_object();"],
+            non_compliant=["struct incomplete_tag *p = (struct incomplete_tag *)raw;"],
+        )
+
+
+class Rule18_5(BaseRulePlugin):
+    @property
+    def metadata(self) -> RuleMetadata:
+        return RuleMetadata(
+            rule_id="misra-c2012-rule-18-5",
+            rule_number="18.5",
+            standard=RuleStandard.MISRA_C_2012,
+            category=RuleCategory.ADVISORY,
+            severity=RuleSeverity.MINOR,
+            title="Declarations should contain no more than two levels of pointer nesting",
+            description="A declaration should use at most two levels of pointer indirection.",
+            rationale="Deep pointer nesting obscures ownership and aliasing relationships.",
+            tags=["pointers", "declarations"],
+            references=["MISRA C:2012 Rule 18.5"],
+            plugin_module="misra_platform_rules.standards.misra_c_2012.rules.rule_pack_pointers",
+            requires_ast_nodes=["VarDecl", "ParmVarDecl"],
+            implementation_category=RuleImplementationCategory.B_TYPE_SYSTEM,
+            rule_pack=RulePack.POINTERS,
+            requires_type_info=True,
+        )
+
+    def detect(self, context: RuleContext) -> list[RuleResult]:
+        graph = self.graph(context)
+        results: list[RuleResult] = []
+        for kind in ("VarDecl", "ParmVarDecl"):
+            for node in graph.nodes_by_kind(kind):
+                depth = node.get("type_information", {}).get("pointer_nesting_depth", 0)
+                if depth <= 2:
+                    continue
+                name = node.get("semantic_properties", {}).get("name", "<decl>")
+                results.append(
+                    self.make_result(
+                        context,
+                        graph,
+                        node,
+                        explanation=f"'{name}' declares {depth} levels of pointer nesting.",
+                        risk_description="More than two pointer levels are hard to review and reason about.",
+                        confidence_factors={
+                            "ast_match_specificity": 0.9,
+                            "type_information_complete": 0.88,
+                            "macro_clarity": 0.9,
+                            "historical_false_positive_rate": 0.15,
+                            "fix_generator_certainty": 0.3,
+                        },
+                        confidence_score=0.82,
+                        suggested_fix=SuggestedFix(
+                            original_code=AstGraph.offending_text(node),
+                            suggested_code="reduce pointer nesting with a struct or typedef wrapper",
+                            rationale="Keep pointer indirection to at most two levels.",
+                            confidence_score=0.3,
+                        ),
+                    )
+                )
+        return results
+
+    def examples(self) -> RuleExamples:
+        return RuleExamples(
+            compliant=["typedef struct node_tag { struct node_tag *next; } node_t;"],
+            non_compliant=["int32_t ***deep_ptr;"],
+        )

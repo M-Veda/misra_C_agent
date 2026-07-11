@@ -1,6 +1,6 @@
-"""Phase 4 deliverable: run the full rule registry against the
-STM32-HAL/CMSIS/FreeRTOS/lwIP-modeled corpora and report crashes, findings,
-and documented unsupported constructs.
+"""Phase 4/9 deliverable: run the full rule registry against industrial
+embedded corpora (STM32 HAL, CMSIS, FreeRTOS, lwIP, Zephyr, mbedTLS) and
+report crashes, findings, false positives, and unsupported constructs.
 
 The hard requirement is zero crashes: every registered rule must be able to
 run against every realistic embedded-C construct in the corpus without
@@ -101,9 +101,9 @@ def test_no_crashes_across_full_registry(corpus_report: dict) -> None:
     assert corpus_report["crash_count"] == 0, json.dumps(corpus_report["crashes"], indent=2)
 
 
-def test_corpus_covers_all_four_codebases(corpus_report: dict) -> None:
+def test_corpus_covers_all_six_codebases(corpus_report: dict) -> None:
     corpora = {unit.corpus for unit in build_all_corpora()}
-    assert corpora == {"stm32_hal", "cmsis", "freertos", "lwip"}
+    assert corpora == {"stm32_hal", "cmsis", "freertos", "lwip", "zephyr", "mbedtls"}
 
 
 def test_report_is_generated_on_disk(corpus_report: dict) -> None:
