@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: misra-frontend
+  namespace: misra-platform
+  labels:
+    app: misra-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: misra-frontend
+  template:
+    metadata:
+      labels:
+        app: misra-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: misra-platform/frontend:1.0.0-rc1
+          ports:
+            - containerPort: 80
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: misra-frontend
+  namespace: misra-platform
+spec:
+  selector:
+    app: misra-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http

@@ -1,0 +1,25 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: misra-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - misra-backend:8000
+        labels:
+          service: misra-compliance-platform
+
+  - job_name: misra-backend-k8s
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [misra-platform]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: misra-backend
+      - source_labels: [__meta_kubernetes_pod_ip]
+        target_label: __address__
+        replacement: ${1}:8000

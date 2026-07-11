@@ -1,0 +1,17 @@
+{{- if .Values.observability.prometheus.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "misra-platform.fullname" . }}-backend
+  labels:
+    {{- include "misra-platform.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: misra-backend
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval }}
+{{- end }}

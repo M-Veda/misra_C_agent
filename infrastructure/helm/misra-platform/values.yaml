@@ -1,0 +1,74 @@
+replicaCount:
+  backend: 2
+  frontend: 2
+  clangWorker: 1
+
+image:
+  backend:
+    repository: misra-platform/backend
+    tag: 1.0.0-rc1
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: misra-platform/frontend
+    tag: 1.0.0-rc1
+    pullPolicy: IfNotPresent
+  clangWorker:
+    repository: misra-platform/clang-worker
+    tag: 1.0.0-rc1
+    pullPolicy: IfNotPresent
+
+ingress:
+  enabled: true
+  className: nginx
+  host: misra.example.com
+  annotations: {}
+
+database:
+  url: postgresql+asyncpg://misra:CHANGE_ME@postgres:5432/misra_platform
+
+redis:
+  url: redis://redis:6379/0
+
+auth:
+  required: true
+  apiKeys: []
+
+oidc:
+  enabled: false
+  issuer: ""
+  audience: ""
+  jwksUri: ""
+
+observability:
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+  otel:
+    enabled: false
+    endpoint: http://otel-collector:4317
+    serviceName: misra-compliance-platform
+
+resources:
+  backend:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  clangWorker:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 4000m
+      memory: 4Gi
+  frontend:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: misra-clang-worker
+  namespace: misra-platform
+  labels:
+    app: misra-clang-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: misra-clang-worker
+  template:
+    metadata:
+      labels:
+        app: misra-clang-worker
+    spec:
+      containers:
+        - name: clang-worker
+          image: misra-platform/clang-worker:1.0.0-rc1
+          ports:
+            - containerPort: 50051
+              name: grpc
+          readinessProbe:
+            exec:
+              command: ["/app/healthcheck.sh"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "4"
+              memory: 4Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: misra-clang-worker
+  namespace: misra-platform
+spec:
+  selector:
+    app: misra-clang-worker
+  ports:
+    - port: 50051
+      targetPort: 50051
+      name: grpc

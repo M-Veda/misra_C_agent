@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "misra-platform.fullname" . }}-config
+  labels:
+    {{- include "misra-platform.labels" . | nindent 4 }}
+data:
+  MISRA_ENVIRONMENT: production
+  MISRA_LOG_LEVEL: INFO
+  MISRA_CLANG_WORKER_HOST: {{ include "misra-platform.fullname" . }}-clang-worker
+  MISRA_CLANG_WORKER_PORT: "50051"
+  MISRA_PROMETHEUS_ENABLED: {{ .Values.observability.prometheus.enabled | quote }}
+  MISRA_OTEL_ENABLED: {{ .Values.observability.otel.enabled | quote }}
+  MISRA_OTEL_SERVICE_NAME: {{ .Values.observability.otel.serviceName | quote }}
+  MISRA_OTEL_EXPORTER_ENDPOINT: {{ .Values.observability.otel.endpoint | quote }}
+  MISRA_AUTH_REQUIRED: {{ .Values.auth.required | quote }}

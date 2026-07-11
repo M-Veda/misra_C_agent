@@ -1,0 +1,13 @@
+apiVersion: v2
+name: misra-platform
+description: MISRA C Compliance Platform — enterprise release candidate
+type: application
+version: 1.0.0-rc1
+appVersion: "1.0.0-rc1"
+keywords:
+  - misra
+  - compliance
+  - embedded
+  - static-analysis
+maintainers:
+  - name: MISRA Platform Team

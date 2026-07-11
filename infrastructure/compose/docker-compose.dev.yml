@@ -1,0 +1,15 @@
+name: misra-platform-dev
+
+services:
+  backend:
+    build:
+      target: development
+    environment:
+      MISRA_ENVIRONMENT: development
+      MISRA_LOG_LEVEL: DEBUG
+    command: ["/app/backend-entrypoint.sh"]
+
+  frontend:
+    build:
+      target: development
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]

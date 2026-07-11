@@ -1,0 +1,18 @@
+# One-shot validation profile for Phase 9 industrial validation.
+# Usage: docker compose -f docker-compose.yml -f infrastructure/compose/docker-compose.validation.yml run validation
+
+services:
+  validation:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/backend.Dockerfile
+      target: development
+    environment:
+      PYTHONPATH: /app/backend/src:/app/rule-engine/src
+    volumes:
+      - ./rule-engine:/app/rule-engine:cached
+      - ./validation:/app/validation:cached
+    working_dir: /app
+    command: ["python", "validation/run_all.py"]
+    networks:
+      - misra-net

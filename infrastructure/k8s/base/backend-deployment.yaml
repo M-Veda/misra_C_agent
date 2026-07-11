@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: misra-backend
+  namespace: misra-platform
+  labels:
+    app: misra-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: misra-backend
+  template:
+    metadata:
+      labels:
+        app: misra-backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: backend
+          image: misra-platform/backend:1.0.0-rc1
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: misra-platform-config
+            - secretRef:
+                name: misra-platform-secrets
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: misra-backend
+  namespace: misra-platform
+  labels:
+    app: misra-backend
+spec:
+  selector:
+    app: misra-backend
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http

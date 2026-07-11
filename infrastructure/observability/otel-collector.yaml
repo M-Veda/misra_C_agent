@@ -1,0 +1,31 @@
+# OpenTelemetry Collector configuration for MISRA platform tracing.
+# Deploy alongside the platform when MISRA_OTEL_ENABLED=true.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+exporters:
+  logging:
+    loglevel: info
+  # Uncomment for Jaeger/Tempo backend:
+  # otlp/jaeger:
+  #   endpoint: jaeger-collector:4317
+  #   tls:
+  #     insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [logging]

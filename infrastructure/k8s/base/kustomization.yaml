@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: misra-platform
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - backend-deployment.yaml
+  - clang-worker-deployment.yaml
+  - frontend-deployment.yaml
+  - ingress.yaml
+  - servicemonitor.yaml
+
+commonLabels:
+  app.kubernetes.io/name: misra-platform
+  app.kubernetes.io/version: 1.0.0-rc1

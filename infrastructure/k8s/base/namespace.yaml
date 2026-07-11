@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: misra-platform
+  labels:
+    app.kubernetes.io/name: misra-platform
+    app.kubernetes.io/version: "1.0.0-rc1"

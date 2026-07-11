@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: misra-platform-config
+  namespace: misra-platform
+data:
+  MISRA_ENVIRONMENT: production
+  MISRA_LOG_LEVEL: INFO
+  MISRA_CLANG_WORKER_HOST: misra-clang-worker
+  MISRA_CLANG_WORKER_PORT: "50051"
+  MISRA_API_V1_PREFIX: /api/v1
+  MISRA_PROMETHEUS_ENABLED: "true"
+  MISRA_OTEL_ENABLED: "false"
+  MISRA_OTEL_SERVICE_NAME: misra-compliance-platform
+  MISRA_AUTH_REQUIRED: "true"

@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "misra-platform.fullname" . }}-backend
+  labels:
+    {{- include "misra-platform.labels" . | nindent 4 }}
+    app: misra-backend
+spec:
+  replicas: {{ .Values.replicaCount.backend }}
+  selector:
+    matchLabels:
+      app: misra-backend
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: misra-backend
+        {{- include "misra-platform.labels" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: {{ .Values.observability.prometheus.enabled | quote }}
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: backend
+          image: "{{ .Values.image.backend.repository }}:{{ .Values.image.backend.tag }}"
+          imagePullPolicy: {{ .Values.image.backend.pullPolicy }}
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: {{ include "misra-platform.fullname" . }}-config
+          env:
+            - name: MISRA_DATABASE_URL
+              value: {{ .Values.database.url | quote }}
+            - name: MISRA_REDIS_URL
+              value: {{ .Values.redis.url | quote }}
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.resources.backend | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "misra-platform.fullname" . }}-backend
+  labels:
+    {{- include "misra-platform.labels" . | nindent 4 }}
+    app: misra-backend
+spec:
+  selector:
+    app: misra-backend
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
