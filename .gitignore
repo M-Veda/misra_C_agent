@@ -18,7 +18,6 @@ htmlcov/
 # Build artifacts
 clang-worker/build/
 clang-worker/generated/
-backend/.env
 
 # IDE
 .idea/
@@ -30,17 +29,22 @@ backend/.env
 .DS_Store
 Thumbs.db
 
-# Docker
+# Docker / logs
 *.log
 
-# Secrets (never commit)
+# Secrets
 .env
 .env.local
 .env.*.local
 backend/.env
 
-# Generated validation / benchmark outputs (regenerate via validation/run_all.py)
+# Validation and benchmark outputs
 validation/reports/
+
+# Rule engine generated reports
+rule-engine/reports/*.json
+rule-engine/tests/conformance/*.json
+rule-engine/tests/performance/*.json
 
 # Local databases
 *.db
