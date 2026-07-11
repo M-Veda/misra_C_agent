@@ -1,0 +1,188 @@
+{
+  "functions_analyzed": 12,
+  "rules_run": 75,
+  "crashes": [],
+  "crash_count": 0,
+  "findings": [
+    {
+      "corpus": "stm32_hal",
+      "function": "HAL_GPIO_WritePin",
+      "rule_id": "misra-c2012-rule-10-5",
+      "violation_count": 1
+    },
+    {
+      "corpus": "stm32_hal",
+      "function": "HAL_UART_Transmit",
+      "rule_id": "misra-c2012-rule-14-4",
+      "violation_count": 1
+    },
+    {
+      "corpus": "stm32_hal",
+      "function": "HAL_UART_Transmit",
+      "rule_id": "misra-c2012-rule-15-5",
+      "violation_count": 1
+    },
+    {
+      "corpus": "stm32_hal",
+      "function": "HAL_UART_GetState",
+      "rule_id": "misra-c2012-rule-15-5",
+      "violation_count": 1
+    },
+    {
+      "corpus": "stm32_hal",
+      "function": "HAL_UART_GetState",
+      "rule_id": "misra-c2012-rule-2-1",
+      "violation_count": 2
+    },
+    {
+      "corpus": "stm32_hal",
+      "function": "HAL_UART_GetState",
+      "rule_id": "misra-c2012-rule-5-3",
+      "violation_count": 1
+    },
+    {
+      "corpus": "cmsis",
+      "function": "NVIC_EnableIRQ",
+      "rule_id": "misra-c2012-rule-10-1",
+      "violation_count": 1
+    },
+    {
+      "corpus": "cmsis",
+      "function": "NVIC_EnableIRQ",
+      "rule_id": "misra-c2012-rule-10-5",
+      "violation_count": 2
+    },
+    {
+      "corpus": "cmsis",
+      "function": "SysTick_Config",
+      "rule_id": "misra-c2012-rule-10-4",
+      "violation_count": 1
+    },
+    {
+      "corpus": "cmsis",
+      "function": "SysTick_Config",
+      "rule_id": "misra-c2012-rule-15-5",
+      "violation_count": 1
+    },
+    {
+      "corpus": "freertos",
+      "function": "vTaskDelete",
+      "rule_id": "misra-c2012-rule-15-1",
+      "violation_count": 1
+    },
+    {
+      "corpus": "freertos",
+      "function": "vTaskDelete",
+      "rule_id": "misra-c2012-rule-2-7",
+      "violation_count": 1
+    },
+    {
+      "corpus": "lwip",
+      "function": "inet_chksum",
+      "rule_id": "misra-c2012-rule-14-4",
+      "violation_count": 1
+    },
+    {
+      "corpus": "lwip",
+      "function": "pbuf_copy",
+      "rule_id": "misra-c2012-rule-19-1",
+      "violation_count": 1
+    }
+  ],
+  "finding_count": 14,
+  "findings_by_corpus": {
+    "stm32_hal": 6,
+    "cmsis": 4,
+    "freertos": 2,
+    "lwip": 2
+  },
+  "corpus_construction_artifacts": {
+    "findings": [
+      {
+        "corpus": "stm32_hal",
+        "function": "HAL_GPIO_WritePin",
+        "rule_id": "misra-c2012-rule-8-4",
+        "violation_count": 1
+      },
+      {
+        "corpus": "stm32_hal",
+        "function": "HAL_UART_Transmit",
+        "rule_id": "misra-c2012-rule-8-4",
+        "violation_count": 1
+      },
+      {
+        "corpus": "stm32_hal",
+        "function": "HAL_UART_GetState",
+        "rule_id": "misra-c2012-rule-8-4",
+        "violation_count": 1
+      },
+      {
+        "corpus": "freertos",
+        "function": "vListInsertEnd",
+        "rule_id": "misra-c2012-rule-8-4",
+        "violation_count": 1
+      },
+      {
+        "corpus": "freertos",
+        "function": "vTaskDelay",
+        "rule_id": "misra-c2012-rule-8-4",
+        "violation_count": 1
+      },
+      {
+        "corpus": "freertos",
+        "function": "vTaskDelete",
+        "rule_id": "misra-c2012-rule-8-4",
+        "violation_count": 1
+      },
+      {
+        "corpus": "lwip",
+        "function": "pbuf_header",
+        "rule_id": "misra-c2012-rule-8-4",
+        "violation_count": 1
+      },
+      {
+        "corpus": "lwip",
+        "function": "inet_chksum",
+        "rule_id": "misra-c2012-rule-8-4",
+        "violation_count": 1
+      },
+      {
+        "corpus": "lwip",
+        "function": "pbuf_copy",
+        "rule_id": "misra-c2012-rule-8-4",
+        "violation_count": 1
+      }
+    ],
+    "count": 9,
+    "explanation": {
+      "misra-c2012-rule-8-4": "Fires because each corpus unit is a standalone TU with the function defined directly and no separate header-declared prototype. Real HAL/FreeRTOS/lwIP sources declare these in a header; this is a corpus-modeling gap, not a genuine cross-TU linkage finding."
+    }
+  },
+  "unsupported_constructs": [
+    {
+      "construct": "Function-like macro expansion (raw, pre-expansion body)",
+      "example": "NVIC_EnableIRQ(x) as written before macro expansion",
+      "impact": "We model the *expanded* form; macro-body-specific rules (20.x, Dir 4.9) need the raw macro text, not covered here."
+    },
+    {
+      "construct": "Bit-field declarations (`unsigned int f : 3;`)",
+      "example": "CMSIS peripheral bit-field structs",
+      "impact": "EssentialTypeEngine.bitfield_essential_type() supports the type math; the AST schema has no bit-width metadata field yet to drive it automatically."
+    },
+    {
+      "construct": "Inline assembly blocks",
+      "example": "CMSIS __ASM intrinsics (`__DSB()`, `__WFI()`)",
+      "impact": "Not represented in the AST schema at all; Dir 4.3 (encapsulate assembly) cannot be checked."
+    },
+    {
+      "construct": "Volatile-qualified struct member access chains",
+      "example": "`GPIOx->MODER` where MODER is declared `__IOM uint32_t`",
+      "impact": "`qualifiers` is tracked per-node but our MemberExpr fixtures don't yet propagate the base struct's field qualifiers; Rule 13.2/1.3 volatile side-effect ordering checks are approximate."
+    },
+    {
+      "construct": "Designated initializers for peripheral config structs",
+      "example": "`GPIO_InitTypeDef cfg = { .Pin = GPIO_PIN_5, .Mode = GPIO_MODE_OUTPUT_PP };`",
+      "impact": "Rule 9.4/9.5 need designated-initializer metadata not yet in the AST schema (tracked in coverage_matrix.py)."
+    }
+  ]
+}

@@ -1,0 +1,325 @@
+standard: misra_c_2012
+version: "0.1.0"
+extends: null
+rules:
+  - rule_id: misra-c2012-rule-8-4
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_8_4
+    class_name: Rule8_4
+    dependencies: []
+  - rule_id: misra-c2012-rule-10-1
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_10_1
+    class_name: Rule10_1
+    dependencies: []
+  - rule_id: misra-c2012-rule-10-3
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_10_3
+    class_name: Rule10_3
+    dependencies: []
+  - rule_id: misra-c2012-rule-11-8
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_11_8
+    class_name: Rule11_8
+    dependencies: []
+  - rule_id: misra-c2012-rule-15-5
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_15_5
+    class_name: Rule15_5
+    dependencies: []
+  # --- Phase 3: Essential Types pack -----------------------------------
+  - rule_id: misra-c2012-rule-10-2
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_essential_types
+    class_name: Rule10_2
+    dependencies: []
+  # --- Phase 3: Conversions pack ---------------------------------------
+  - rule_id: misra-c2012-rule-10-4
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_conversions
+    class_name: Rule10_4
+    dependencies: []
+  - rule_id: misra-c2012-rule-10-5
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_conversions
+    class_name: Rule10_5
+    dependencies: []
+  - rule_id: misra-c2012-rule-10-7
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_conversions
+    class_name: Rule10_7
+    dependencies: []
+  # --- Phase 3: Declarations pack --------------------------------------
+  - rule_id: misra-c2012-rule-8-2
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule8_2
+    dependencies: []
+  - rule_id: misra-c2012-rule-8-6
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule8_6
+    dependencies: []
+  - rule_id: misra-c2012-rule-8-14
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule8_14
+    dependencies: []
+  # --- Phase 3: Pointers pack -------------------------------------------
+  - rule_id: misra-c2012-rule-11-4
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_pointers
+    class_name: Rule11_4
+    dependencies: []
+  - rule_id: misra-c2012-rule-11-5
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_pointers
+    class_name: Rule11_5
+    dependencies: []
+  - rule_id: misra-c2012-rule-11-9
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_pointers
+    class_name: Rule11_9
+    dependencies: []
+  - rule_id: misra-c2012-rule-18-2
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_pointers
+    class_name: Rule18_2
+    dependencies: []
+  # --- Phase 3: Control Flow pack ---------------------------------------
+  # --- Phase 4: real-CFG unreachable-code check --------------------------
+  - rule_id: misra-c2012-rule-2-1
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule2_1
+    dependencies: []
+  - rule_id: misra-c2012-rule-15-1
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule15_1
+    dependencies: []
+  - rule_id: misra-c2012-rule-15-6
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule15_6
+    dependencies: []
+  - rule_id: misra-c2012-rule-16-3
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule16_3
+    dependencies: []
+  - rule_id: misra-c2012-rule-16-4
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule16_4
+    dependencies: []
+  - rule_id: misra-c2012-rule-16-6
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule16_6
+    dependencies: []
+  # --- Phase 3: Preprocessor pack ---------------------------------------
+  - rule_id: misra-c2012-rule-20-4
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor
+    class_name: Rule20_4
+    dependencies: []
+  - rule_id: misra-c2012-rule-20-7
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor
+    class_name: Rule20_7
+    dependencies: []
+  - rule_id: misra-c2012-rule-20-14
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor
+    class_name: Rule20_14
+    dependencies: []
+  - rule_id: misra-c2012-rule-21-1
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor
+    class_name: Rule21_1
+    dependencies: []
+  # --- Phase 3: Expressions pack -----------------------------------------
+  - rule_id: misra-c2012-rule-12-3
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_expressions
+    class_name: Rule12_3
+    dependencies: []
+  - rule_id: misra-c2012-rule-13-4
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_expressions
+    class_name: Rule13_4
+    dependencies: []
+  - rule_id: misra-c2012-rule-13-5
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_expressions
+    class_name: Rule13_5
+    dependencies: []
+  - rule_id: misra-c2012-rule-14-4
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_expressions
+    class_name: Rule14_4
+    dependencies: []
+  # --- Phase 3: Initialization pack --------------------------------------
+  - rule_id: misra-c2012-rule-9-1
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_initialization
+    class_name: Rule9_1
+    dependencies: []
+  - rule_id: misra-c2012-rule-2-2
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_initialization
+    class_name: Rule2_2
+    dependencies: []
+  # --- Phase 3: Storage Duration pack -------------------------------------
+  - rule_id: misra-c2012-rule-8-9
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_storage_duration
+    class_name: Rule8_9
+    dependencies: []
+  - rule_id: misra-c2012-rule-18-6
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_storage_duration
+    class_name: Rule18_6
+    dependencies: []
+  # --- Phase 3: Linkage pack -----------------------------------------------
+  - rule_id: misra-c2012-rule-5-1
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_linkage
+    class_name: Rule5_1
+    dependencies: []
+  - rule_id: misra-c2012-rule-8-7
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_linkage
+    class_name: Rule8_7
+    dependencies: []
+  - rule_id: misra-c2012-rule-8-10
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_linkage
+    class_name: Rule8_10
+    dependencies: []
+  # --- Phase 5: Declarations pack (batch A: AST-only) ---------------------
+  - rule_id: misra-c2012-rule-5-2
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule5_2
+    dependencies: []
+  - rule_id: misra-c2012-rule-5-3
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule5_3
+    dependencies: []
+  - rule_id: misra-c2012-rule-2-7
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule2_7
+    dependencies: []
+  # --- Phase 5: Expressions pack (batch A: AST-only) -----------------------
+  - rule_id: misra-c2012-rule-13-1
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_expressions
+    class_name: Rule13_1
+    dependencies: []
+  - rule_id: misra-c2012-rule-13-6
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_expressions
+    class_name: Rule13_6
+    dependencies: []
+  # --- Phase 5: Control Flow pack (batch A/C) ------------------------------
+  - rule_id: misra-c2012-rule-16-2
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule16_2
+    dependencies: []
+  - rule_id: misra-c2012-rule-16-5
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule16_5
+    dependencies: []
+  - rule_id: misra-c2012-rule-17-4
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule17_4
+    dependencies: []
+  - rule_id: misra-c2012-rule-15-4
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule15_4
+    dependencies: []
+  # --- Phase 5: Linkage pack (batch A/E) -----------------------------------
+  - rule_id: misra-c2012-rule-5-8
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_linkage
+    class_name: Rule5_8
+    dependencies: []
+  - rule_id: misra-c2012-rule-5-9
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_linkage
+    class_name: Rule5_9
+    dependencies: []
+  - rule_id: misra-c2012-rule-8-5
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_linkage
+    class_name: Rule8_5
+    dependencies: []
+  - rule_id: misra-c2012-rule-8-8
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_linkage
+    class_name: Rule8_8
+    dependencies: []
+  # --- Phase 5: Preprocessor pack (batch F) --------------------------------
+  - rule_id: misra-c2012-rule-2-5
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor
+    class_name: Rule2_5
+    dependencies: []
+  - rule_id: misra-c2012-rule-5-4
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor
+    class_name: Rule5_4
+    dependencies: []
+  - rule_id: misra-c2012-rule-21-2
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_preprocessor
+    class_name: Rule21_2
+    dependencies: []
+  # --- Phase 5: Conversions pack (batch B: type-system) --------------------
+  - rule_id: misra-c2012-rule-7-4
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_conversions
+    class_name: Rule7_4
+    dependencies: []
+  - rule_id: misra-c2012-rule-11-1
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_conversions
+    class_name: Rule11_1
+    dependencies: []
+  - rule_id: misra-c2012-rule-11-6
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_conversions
+    class_name: Rule11_6
+    dependencies: []
+  # --- Phase 5: Pointers pack (batch B/D) ----------------------------------
+  - rule_id: misra-c2012-rule-18-3
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_pointers
+    class_name: Rule18_3
+    dependencies: []
+  - rule_id: misra-c2012-rule-18-4
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_pointers
+    class_name: Rule18_4
+    dependencies: []
+  - rule_id: misra-c2012-rule-19-1
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_pointers
+    class_name: Rule19_1
+    dependencies: []
+  # --- Phase 6: Declarations pack (ready_now batch A) --------------------
+  - rule_id: misra-c2012-rule-2-3
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule2_3
+    dependencies: []
+  - rule_id: misra-c2012-rule-2-4
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule2_4
+    dependencies: []
+  - rule_id: misra-c2012-rule-5-5
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule5_5
+    dependencies: []
+  - rule_id: misra-c2012-rule-5-6
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule5_6
+    dependencies: []
+  - rule_id: misra-c2012-rule-5-7
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule5_7
+    dependencies: []
+  - rule_id: misra-c2012-rule-8-1
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule8_1
+    dependencies: []
+  - rule_id: misra-c2012-rule-17-3
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule17_3
+    dependencies: []
+  - rule_id: misra-c2012-rule-17-6
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule17_6
+    dependencies: []
+  - rule_id: misra-c2012-rule-18-7
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule18_7
+    dependencies: []
+  - rule_id: misra-c2012-rule-19-2
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_declarations
+    class_name: Rule19_2
+    dependencies: []
+  # --- Phase 6: Control Flow pack (ready_now batch C) --------------------
+  - rule_id: misra-c2012-rule-15-2
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule15_2
+    dependencies: []
+  - rule_id: misra-c2012-rule-15-3
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule15_3
+    dependencies: []
+  - rule_id: misra-c2012-rule-15-7
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule15_7
+    dependencies: []
+  - rule_id: misra-c2012-rule-14-2
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_control_flow
+    class_name: Rule14_2
+    dependencies: []
+  # --- Phase 6: Initialization pack (ready_now batch A) --------------------
+  - rule_id: misra-c2012-rule-9-3
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_initialization
+    class_name: Rule9_3
+    dependencies: []
+  - rule_id: misra-c2012-rule-9-5
+    module: misra_platform_rules.standards.misra_c_2012.rules.rule_pack_initialization
+    class_name: Rule9_5
+    dependencies: []

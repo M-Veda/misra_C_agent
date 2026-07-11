@@ -1,0 +1,4 @@
+standard: misra_c_2023
+version: "0.1.0"
+extends: misra_c_2012
+rules: []
