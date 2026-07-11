@@ -1,0 +1,65 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "backend/**"
+      - "shared/**"
+      - "infrastructure/docker/backend.Dockerfile"
+      - ".github/workflows/ci-backend.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "shared/**"
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: misra
+          POSTGRES_PASSWORD: misra_ci_password
+          POSTGRES_DB: misra_platform
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U misra -d misra_platform"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e "./backend[dev]"
+
+      - name: Lint
+        run: |
+          ruff check backend/src backend/tests
+          mypy backend/src
+
+      - name: Test
+        env:
+          MISRA_ENVIRONMENT: ci
+          MISRA_DATABASE_URL: postgresql+asyncpg://misra:misra_ci_password@localhost:5432/misra_platform
+          MISRA_REDIS_URL: redis://localhost:6379/0
+          MISRA_CLANG_WORKER_HOST: localhost
+          MISRA_CLANG_WORKER_PORT: "50051"
+        run: pytest backend/tests

@@ -1,0 +1,19 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build production images
+        run: |
+          docker compose -f docker-compose.yml -f infrastructure/compose/docker-compose.prod.yml build
+
+      - name: Publish release metadata
+        run: echo "Release ${GITHUB_REF_NAME} images built successfully."

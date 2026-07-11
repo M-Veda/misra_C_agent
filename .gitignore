@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Build artifacts
+clang-worker/build/
+clang-worker/generated/
+backend/.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+
+# Secrets (never commit)
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# Generated validation / benchmark outputs (regenerate via validation/run_all.py)
+validation/reports/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+postgres_data/

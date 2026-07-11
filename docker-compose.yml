@@ -1,0 +1,138 @@
+name: misra-platform
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-misra}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-misra_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-misra_platform}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-misra} -d ${POSTGRES_DB:-misra_platform}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - misra-net
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - misra-net
+
+  clang-worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/clang-worker.Dockerfile
+    ports:
+      - "${CLANG_WORKER_PORT:-50051}:50051"
+    healthcheck:
+      test: ["CMD", "/app/healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - misra-net
+
+  backend:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/backend.Dockerfile
+      target: development
+    environment:
+      MISRA_ENVIRONMENT: development
+      MISRA_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-misra}:${POSTGRES_PASSWORD:-misra_dev_password}@postgres:5432/${POSTGRES_DB:-misra_platform}
+      MISRA_REDIS_URL: redis://redis:6379/0
+      MISRA_CLANG_WORKER_HOST: clang-worker
+      MISRA_CLANG_WORKER_PORT: "50051"
+      MISRA_CORS_ORIGINS: ${MISRA_CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      MISRA_LOG_LEVEL: ${MISRA_LOG_LEVEL:-INFO}
+      MISRA_ARTIFACT_STORAGE_PATH: /app/data/artifacts
+      MISRA_TOOLCHAIN_PROFILE_DIR: /app/shared/toolchain_profiles
+    volumes:
+      - ./backend:/app/backend:cached
+      - ./rule-engine:/app/rule-engine:cached
+      - ./shared:/app/shared:cached
+      - ./samples:/workspace/samples:cached
+      - backend_data:/app/data
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clang-worker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - misra-net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/frontend.Dockerfile
+      target: development
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    volumes:
+      - ./frontend:/app/frontend:cached
+      - frontend_node_modules:/app/frontend/node_modules
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - misra-net
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - misra-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  frontend_node_modules:
+  backend_data:
+
+networks:
+  misra-net:
+    driver: bridge
