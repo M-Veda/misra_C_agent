@@ -1,0 +1,37 @@
+@Library('misra-compliance') _
+
+pipeline {
+    agent any
+
+    environment {
+        MISRA_API_URL = 'http://misra-platform:8000'
+        MISRA_RUN_ID = "${params.MISRA_RUN_ID}"
+        MISRA_TEAM_ID = "${params.MISRA_TEAM_ID ?: ''}"
+    }
+
+    parameters {
+        string(name: 'MISRA_RUN_ID', description: 'Analysis run UUID from MISRA platform')
+        string(name: 'MISRA_TEAM_ID', defaultValue: '', description: 'Optional team UUID')
+    }
+
+    stages {
+        stage('MISRA Enterprise Compliance') {
+            steps {
+                withCredentials([string(credentialsId: 'misra-api-key', variable: 'MISRA_API_KEY')]) {
+                    misraCompliance(
+                        apiUrl: env.MISRA_API_URL,
+                        runId: env.MISRA_RUN_ID,
+                        apiKey: env.MISRA_API_KEY,
+                        teamId: env.MISRA_TEAM_ID
+                    )
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Human review required. Patches are export-only — no auto-modify.'
+        }
+    }
+}

@@ -1,0 +1,41 @@
+# GitLab CI component for MISRA compliance scanning.
+# Include from .gitlab-ci.yml:
+#   include:
+#     - local: integrations/ci/gitlab/misra-compliance.yml
+
+.misra_scan:
+  image: curlimages/curl:8.11.1
+  variables:
+    MISRA_API_URL: "http://misra-platform:8000"
+  script:
+    - |
+      curl -fsS \
+        -H "X-API-Key: ${MISRA_API_KEY}" \
+        "${MISRA_API_URL}/api/v1/analysis/runs/${MISRA_RUN_ID}/export/gitlab-codequality" \
+        -o gl-code-quality-report.json
+    - |
+      curl -fsS -X POST \
+        -H "Content-Type: application/json" \
+        -H "X-API-Key: ${MISRA_API_KEY}" \
+        -d '{"platform":"gitlab"}' \
+        "${MISRA_API_URL}/api/v1/analysis/runs/${MISRA_RUN_ID}/integrations/pr-comment" \
+        -o pr-comment.json
+    - |
+      curl -fsS -X POST \
+        -H "Content-Type: application/json" \
+        -H "X-API-Key: ${MISRA_API_KEY}" \
+        -d '{}' \
+        "${MISRA_API_URL}/api/v1/analysis/runs/${MISRA_RUN_ID}/compliance-snapshot"
+  artifacts:
+    reports:
+      codequality: gl-code-quality-report.json
+    paths:
+      - gl-code-quality-report.json
+      - pr-comment.json
+    expire_in: 30 days
+
+misra:compliance:
+  extends: .misra_scan
+  stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"

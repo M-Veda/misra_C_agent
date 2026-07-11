@@ -1,0 +1,92 @@
+name: MISRA Compliance Scan
+description: Run MISRA C analysis and publish SARIF, annotations, and PR comments.
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  api-url:
+    description: MISRA platform API base URL
+    required: true
+  api-key:
+    description: CI service API key (X-API-Key)
+    required: false
+  project-id:
+    description: Platform project UUID
+    required: true
+  run-id:
+    description: Analysis run UUID (from prior analysis step)
+    required: true
+  publish-annotations:
+    description: Emit GitHub workflow command annotations
+    required: false
+    default: "true"
+  publish-pr-comment:
+    description: Build PR review comment body
+    required: false
+    default: "true"
+  team-id:
+    description: Optional team UUID for round-robin reviewer assignment
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Export SARIF
+      shell: bash
+      run: |
+        curl -fsS \
+          -H "X-API-Key: ${{ inputs.api-key }}" \
+          "${{ inputs.api-url }}/api/v1/analysis/runs/${{ inputs.run-id }}/export/sarif" \
+          -o misra-results.sarif.json
+        echo "SARIF artifact written to misra-results.sarif.json"
+
+    - name: Publish GitHub annotations
+      if: inputs.publish-annotations == 'true'
+      shell: bash
+      run: |
+        RESPONSE=$(curl -fsS \
+          -H "X-API-Key: ${{ inputs.api-key }}" \
+          "${{ inputs.api-url }}/api/v1/analysis/runs/${{ inputs.run-id }}/export/github-annotations")
+        echo "$RESPONSE" | python3 -c "
+        import json, sys
+        data = json.load(sys.stdin)
+        for line in data.get('annotations', []):
+            print(line)
+        "
+
+    - name: Build PR comment
+      if: inputs.publish-pr-comment == 'true'
+      shell: bash
+      run: |
+        curl -fsS -X POST \
+          -H "Content-Type: application/json" \
+          -H "X-API-Key: ${{ inputs.api-key }}" \
+          -d '{"platform":"github"}' \
+          "${{ inputs.api-url }}/api/v1/analysis/runs/${{ inputs.run-id }}/integrations/pr-comment" \
+          -o pr-comment.json
+        echo "PR comment body saved to pr-comment.json"
+
+    - name: Capture compliance snapshot
+      shell: bash
+      run: |
+        BODY='{}'
+        if [ -n "${{ inputs.team-id }}" ]; then
+          BODY="{\"team_id\":\"${{ inputs.team-id }}\"}"
+        fi
+        curl -fsS -X POST \
+          -H "Content-Type: application/json" \
+          -H "X-API-Key: ${{ inputs.api-key }}" \
+          -d "$BODY" \
+          "${{ inputs.api-url }}/api/v1/analysis/runs/${{ inputs.run-id }}/compliance-snapshot"
+
+    - name: Round-robin assign reviewers
+      if: inputs.team-id != ''
+      shell: bash
+      run: |
+        curl -fsS -X POST \
+          -H "Content-Type: application/json" \
+          -H "X-API-Key: ${{ inputs.api-key }}" \
+          -d "{\"run_id\":\"${{ inputs.run-id }}\",\"team_id\":\"${{ inputs.team-id }}\",\"actor_id\":\"github-actions\"}" \
+          "${{ inputs.api-url }}/api/v1/integrations/round-robin-assign"
