@@ -1,0 +1,16 @@
+{
+  "id": "gcc-host",
+  "name": "GCC Host (Native)",
+  "compiler_family": "gcc",
+  "compiler_executable": "gcc",
+  "target_triple": "x86_64-linux-gnu",
+  "sysroot": "",
+  "resource_directory": "",
+  "builtin_defines": {
+    "__GNUC__": "13",
+    "__linux__": "1"
+  },
+  "include_paths": [],
+  "driver_extra_flags": ["-std=c11"],
+  "future_ready": []
+}

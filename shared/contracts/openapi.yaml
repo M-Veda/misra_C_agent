@@ -1,0 +1,112 @@
+openapi: 3.1.0
+info:
+  title: MISRA Compliance Platform API
+  version: 1.0.0
+  description: Enterprise MISRA C compliance platform REST API.
+  contact:
+    name: MISRA Platform Team
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: http://localhost:8080/api
+    description: Nginx proxy (development)
+paths:
+  /api/v1/health:
+    get:
+      tags:
+        - Health
+      summary: Service health check
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /api/v1/health/ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness probe
+      operationId: getReadiness
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+        "503":
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - version
+        - environment
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy]
+        version:
+          type: string
+        environment:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    ReadinessResponse:
+      type: object
+      required:
+        - status
+        - checks
+      properties:
+        status:
+          type: string
+          enum: [ready, degraded]
+        checks:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/DependencyCheck"
+    DependencyCheck:
+      type: object
+      required:
+        - status
+        - latency_ms
+      properties:
+        status:
+          type: string
+          enum: [up, down]
+        latency_ms:
+          type: number
+          format: float
+        message:
+          type: string
+    ProblemDetail:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri

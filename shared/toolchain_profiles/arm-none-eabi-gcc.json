@@ -1,0 +1,22 @@
+{
+  "id": "arm-none-eabi-gcc",
+  "name": "ARM GCC Embedded (STM32)",
+  "compiler_family": "gcc",
+  "compiler_executable": "arm-none-eabi-gcc",
+  "target_triple": "arm-none-eabi",
+  "sysroot": "",
+  "resource_directory": "",
+  "builtin_defines": {
+    "__GNUC__": "13",
+    "__arm__": "1",
+    "__ARM_ARCH_7M__": "1"
+  },
+  "include_paths": [],
+  "driver_extra_flags": [
+    "-std=c11",
+    "-ffreestanding",
+    "-mthumb",
+    "-mcpu=cortex-m4"
+  ],
+  "future_ready": ["iar", "keil"]
+}

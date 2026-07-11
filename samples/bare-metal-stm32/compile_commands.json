@@ -1,0 +1,12 @@
+[
+  {
+    "directory": "/workspace/samples/bare-metal-stm32",
+    "command": "clang -std=c11 -mthumb -mcpu=cortex-m4 -Iinclude -c src/rpm.c",
+    "file": "src/rpm.c"
+  },
+  {
+    "directory": "/workspace/samples/bare-metal-stm32",
+    "command": "clang -std=c11 -mthumb -mcpu=cortex-m4 -Iinclude -c src/app.c",
+    "file": "src/app.c"
+  }
+]

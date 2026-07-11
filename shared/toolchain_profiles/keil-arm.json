@@ -1,0 +1,16 @@
+{
+  "id": "keil-arm",
+  "name": "Keil ARM (Future-Ready)",
+  "compiler_family": "keil",
+  "compiler_executable": "armcc",
+  "target_triple": "arm-none-eabi",
+  "sysroot": "",
+  "resource_directory": "",
+  "builtin_defines": {
+    "__CC_ARM": "1"
+  },
+  "include_paths": [],
+  "driver_extra_flags": [],
+  "future_ready": ["keil"],
+  "status": "profile_ready_parsing_deferred"
+}

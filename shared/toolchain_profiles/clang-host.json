@@ -1,0 +1,16 @@
+{
+  "id": "clang-host",
+  "name": "Clang Host (Native)",
+  "compiler_family": "clang",
+  "compiler_executable": "clang",
+  "target_triple": "x86_64-linux-gnu",
+  "sysroot": "",
+  "resource_directory": "/usr/lib/clang/18",
+  "builtin_defines": {
+    "__clang__": "1",
+    "__linux__": "1"
+  },
+  "include_paths": [],
+  "driver_extra_flags": ["-std=c11"],
+  "future_ready": []
+}

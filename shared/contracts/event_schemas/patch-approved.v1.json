@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://misra-platform.local/schemas/events/patch-approved.v1.json",
+  "title": "PatchApproved",
+  "type": "object",
+  "required": ["event_id", "event_type", "occurred_at", "payload"],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "const": "patch.approved" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "correlation_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": ["patch_id", "violation_id", "approved_by"],
+      "properties": {
+        "patch_id": { "type": "string", "format": "uuid" },
+        "violation_id": { "type": "string", "format": "uuid" },
+        "approved_by": { "type": "string", "format": "uuid" },
+        "file_path": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

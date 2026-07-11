@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://misra-platform.local/schemas/events/violation-reviewed.v1.json",
+  "title": "ViolationReviewed",
+  "type": "object",
+  "required": ["event_id", "event_type", "occurred_at", "payload"],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "const": "violation.reviewed" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "correlation_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": ["violation_id", "reviewer_id", "action", "previous_status", "new_status"],
+      "properties": {
+        "violation_id": { "type": "string", "format": "uuid" },
+        "reviewer_id": { "type": "string", "format": "uuid" },
+        "action": {
+          "type": "string",
+          "enum": ["accept", "reject", "edit", "skip", "false_positive", "suppress"]
+        },
+        "previous_status": { "type": "string" },
+        "new_status": { "type": "string" },
+        "rule_id": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

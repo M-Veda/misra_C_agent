@@ -1,0 +1,16 @@
+{
+  "id": "iar-arm",
+  "name": "IAR ARM (Future-Ready)",
+  "compiler_family": "iar",
+  "compiler_executable": "iccarm",
+  "target_triple": "arm-none-eabi",
+  "sysroot": "",
+  "resource_directory": "",
+  "builtin_defines": {
+    "__IAR_SYSTEMS_ICC__": "1"
+  },
+  "include_paths": [],
+  "driver_extra_flags": [],
+  "future_ready": ["iar"],
+  "status": "profile_ready_parsing_deferred"
+}

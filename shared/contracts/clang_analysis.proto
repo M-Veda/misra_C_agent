@@ -1,0 +1,171 @@
+syntax = "proto3";
+
+package misra.clang.v1;
+
+option java_multiple_files = true;
+
+service ClangAnalysisService {
+  rpc ParseTranslationUnit(ParseTranslationUnitRequest) returns (ParseTranslationUnitResponse);
+  rpc GetServiceInfo(GetServiceInfoRequest) returns (GetServiceInfoResponse);
+}
+
+message ParseTranslationUnitRequest {
+  string file_path = 1;
+  string source_content = 2;
+  repeated string compile_flags = 3;
+  string working_directory = 4;
+  map<string, string> defines = 5;
+  repeated string include_paths = 6;
+  string target_triple = 7;
+  uint32 ast_schema_version = 8;
+  string toolchain_profile_id = 9;
+  string compiler_executable = 10;
+  string sysroot = 11;
+  string resource_directory = 12;
+}
+
+message SourceRange {
+  string file_path = 1;
+  uint32 line_start = 2;
+  uint32 line_end = 3;
+  uint32 column_start = 4;
+  uint32 column_end = 5;
+  uint32 offset_start = 6;
+  uint32 offset_end = 7;
+}
+
+message TypeInformation {
+  string spelling = 1;
+  string canonical_spelling = 2;
+  string typedef_chain = 3;
+  string fundamental_kind = 4;
+  uint32 bit_width = 5;
+  bool is_signed = 6;
+  bool is_integer = 7;
+  bool is_floating = 8;
+  bool is_pointer = 9;
+  bool is_array = 10;
+  bool is_record = 11;
+  bool is_typedef = 12;
+  string pointee_type = 13;
+  // Phase 7: metadata to unblock blocked_on_ast_metadata rules
+  bool is_incomplete = 14;
+  uint32 pointer_nesting_depth = 15;
+  bool is_variable_length_array = 16;
+  uint32 array_size = 17;
+  string array_size_expression = 18;
+  bool array_size_is_constant = 19;
+  bool is_parameter_decayed_array = 20;
+}
+
+message AstNode {
+  string node_id = 1;
+  string node_kind = 2;
+  SourceRange source_range = 3;
+  string parent_id = 4;
+  repeated string children_ids = 5;
+  TypeInformation type_information = 6;
+  repeated string qualifiers = 7;
+  string essential_type = 8;
+  MacroOrigin macro_origin = 9;
+  map<string, string> semantic_properties = 10;
+}
+
+message MacroOrigin {
+  bool from_macro = 1;
+  string macro_name = 2;
+  SourceRange definition_range = 3;
+  SourceRange expansion_range = 4;
+  repeated string expansion_chain = 5;
+}
+
+message MacroDefinition {
+  string name = 1;
+  string value = 2;
+  bool is_function_like = 3;
+  SourceRange range = 4;
+  string file_path = 5;
+  // Phase 7: Rule 20.10 (# / ## operators)
+  repeated MacroBodyToken body_tokens = 6;
+  bool uses_stringify = 7;
+  bool uses_token_paste = 8;
+}
+
+message MacroBodyToken {
+  string kind = 1;
+  string spelling = 2;
+}
+
+message UndefDirective {
+  string macro_name = 1;
+  SourceRange range = 2;
+}
+
+message PragmaDirective {
+  string pragma_text = 1;
+  SourceRange range = 2;
+}
+
+message MacroExpansion {
+  string name = 1;
+  string replacement = 2;
+  SourceRange use_range = 3;
+  SourceRange definition_range = 4;
+  repeated string chain = 5;
+}
+
+message IncludeDirective {
+  string included_file = 1;
+  string resolved_path = 2;
+  bool is_system = 3;
+  SourceRange range = 4;
+}
+
+message ConditionalBranch {
+  string condition = 1;
+  bool taken = 2;
+  SourceRange range = 3;
+  string directive = 4;
+}
+
+message PreprocessorMetadata {
+  repeated MacroDefinition macro_definitions = 1;
+  repeated MacroExpansion macro_expansions = 2;
+  repeated IncludeDirective include_directives = 3;
+  repeated ConditionalBranch conditional_branches = 4;
+  // Phase 7: Rules 20.5, pragma tracking
+  repeated UndefDirective undef_directives = 5;
+  repeated PragmaDirective pragma_directives = 6;
+}
+
+message DiagnosticMessage {
+  string severity = 1;
+  string message = 2;
+  SourceRange range = 3;
+  string category = 4;
+}
+
+message ParseTranslationUnitResponse {
+  string translation_unit_id = 1;
+  string file_path = 2;
+  uint32 ast_schema_version = 3;
+  repeated AstNode nodes = 4;
+  repeated DiagnosticMessage diagnostics = 5;
+  bool success = 6;
+  string status_message = 7;
+  PreprocessorMetadata preprocessor = 8;
+  string translation_unit_hash = 9;
+  uint64 parse_duration_ms = 10;
+}
+
+message GetServiceInfoRequest {}
+
+message GetServiceInfoResponse {
+  string service_name = 1;
+  string version = 2;
+  uint32 ast_schema_version = 3;
+  bool ready = 4;
+  string llvm_version = 5;
+  string clang_version = 6;
+  repeated string supported_profiles = 7;
+}
