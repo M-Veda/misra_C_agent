@@ -1,0 +1,30 @@
+{
+  "embedded_crash_count": {
+    "max": 0,
+    "description": "Zero crashes across all embedded corpora × all rules"
+  },
+  "conformance_avg_precision": {
+    "min": 0.95,
+    "description": "Average precision across rules with conformance test cases"
+  },
+  "performance_100k_loc_seconds": {
+    "max": 600,
+    "description": "Extrapolated rule-engine time for 100K LOC (excludes clang/IPC)"
+  },
+  "corpora_required": [
+    "stm32_hal",
+    "cmsis",
+    "freertos",
+    "lwip",
+    "zephyr",
+    "mbedtls"
+  ],
+  "false_positive_review": {
+    "required": true,
+    "description": "Corpus construction artifacts documented separately from real findings"
+  },
+  "unsupported_constructs": {
+    "max": 20,
+    "description": "Documented gaps; tracked for release notes"
+  }
+}
